@@ -142,6 +142,7 @@ const SEED: Seed[] = [
   ['Hammer Curl', 'pull', 'weight', 60],
   ['Back Squat', 'legs', 'weight', 180],
   ['Romanian Deadlift', 'legs', 'weight', 150],
+  ['Deadlift', 'legs', 'weight', 180],
   ['Leg Press', 'legs', 'weight', 120],
   ['Leg Curl', 'legs', 'weight', 90],
   ['Leg Extension', 'legs', 'weight', 90],
@@ -173,6 +174,26 @@ db.on('populate', (tx) => {
     })),
   )
 })
+
+/**
+ * Starter exercises added after launch. Existing libraries get each one once (tracked in meta),
+ * skipped if an exercise with that name already exists. No schema change: it's one ordinary record.
+ */
+const LATER_STARTERS: { key: string; exercise: Omit<Exercise, 'id' | 'createdAt'> }[] = [
+  { key: 'starter:deadlift', exercise: { name: 'Deadlift', section: 'legs', kind: 'weight', targetRestSec: 180 } },
+]
+
+export async function addLaterStarters() {
+  const norm = (n: string) => n.toLowerCase().replace(/[^a-z]/g, '')
+  await db.transaction('rw', db.exercises, db.meta, async () => {
+    for (const { key, exercise } of LATER_STARTERS) {
+      if (await db.meta.get(key)) continue
+      const names = new Set((await db.exercises.toArray()).map((e) => norm(e.name)))
+      if (!names.has(norm(exercise.name))) await db.exercises.add({ ...exercise, createdAt: Date.now() })
+      await db.meta.put({ key, value: Date.now() })
+    }
+  })
+}
 
 export async function getMeta<T>(key: string): Promise<T | undefined> {
   return (await db.meta.get(key))?.value as T | undefined

@@ -6,6 +6,7 @@ const PATHS = {
       <path d="M3 9h18M8 2v4M16 2v4" />
     </>
   ),
+  progress: <path d="M3 17l6-6 4 4 8-8M15 7h6v6" />,
   exercises: <path d="M4 6h16M4 12h16M4 18h10" />,
   settings: (
     <>
