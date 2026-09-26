@@ -26,14 +26,6 @@ export function rangeStart(range: RangeId, now: number) {
   return d.getTime()
 }
 
-/**
- * How a lift is measured on the Progress tab.
- * - e1rm: weighted lifts, best estimated 1-rep max of the session.
- * - load: assistable bodyweight lifts, best effective load of the session
- *   (added weight +, assist −, plain bodyweight 0). Higher is better either way.
- */
-export type Metric = 'e1rm' | 'load'
-
 export interface Point {
   t: number
   value: number
@@ -41,16 +33,14 @@ export interface Point {
   best: SetEntry
 }
 
-/** One point per workout: the best value of that session's sets. Oldest first. */
-export function sessionPoints(sets: SetEntry[], metric: Metric, workouts: Map<number, Workout>): Point[] {
+/** One point per workout: the best estimated 1-rep max of that session's sets. Oldest first. */
+export function sessionPoints(sets: SetEntry[], workouts: Map<number, Workout>): Point[] {
   const byWorkout = new Map<number, Point>()
   for (const s of sets) {
-    if (!s.reps) continue
-    const value = metric === 'e1rm' ? e1rm(s.weight, s.reps) : (s.weight ?? 0) - (s.assist ?? 0)
-    if (metric === 'e1rm' && value <= 0) continue
+    const value = e1rm(s.weight, s.reps)
+    if (value <= 0) continue
     const cur = byWorkout.get(s.workoutId)
-    // Ties (same load) go to the set with more reps.
-    if (!cur || value > cur.value || (value === cur.value && (s.reps ?? 0) > (cur.best.reps ?? 0))) {
+    if (!cur || value > cur.value) {
       const t = workouts.get(s.workoutId)?.startedAt ?? s.completedAt
       byWorkout.set(s.workoutId, { t, value, best: s })
     }
@@ -58,43 +48,30 @@ export function sessionPoints(sets: SetEntry[], metric: Metric, workouts: Map<nu
   return [...byWorkout.values()].sort((a, b) => a.t - b.t)
 }
 
-/** Load as the app writes it: "A85" assisted, "BW" bodyweight, "+10" added. */
-export function fmtLoad(v: number) {
-  const r = Math.round(v * 10) / 10
-  if (r < 0) return `A${fmtNum(-r)}`
-  if (r === 0) return 'BW'
-  return `+${fmtNum(r)}`
-}
-
-/** Best set as a short string: "130×6", "A85×8", "BW×10", "+10×6". */
-export function fmtBestSet(metric: Metric, s: SetEntry) {
-  if (metric === 'e1rm') return `${fmtNum(s.weight ?? 0)}×${s.reps ?? 0}`
-  return `${fmtLoad((s.weight ?? 0) - (s.assist ?? 0))}×${s.reps ?? 0}`
+/** Best set as a short string: "130×6". */
+export function fmtBestSet(s: SetEntry) {
+  return `${fmtNum(s.weight ?? 0)}×${s.reps ?? 0}`
 }
 
 export interface Change {
   /** Absolute change in the metric (lb). */
   diff: number
-  /** Percent change, e1RM only. */
-  pct?: number
+  /** Percent change. */
+  pct: number
   up: boolean
 }
 
-export function change(points: Point[], metric: Metric): Change | null {
+export function change(points: Point[]): Change | null {
   if (points.length < 2) return null
   const first = points[0].value
   const last = points[points.length - 1].value
   const diff = last - first
-  return { diff, pct: metric === 'e1rm' && first > 0 ? (diff / first) * 100 : undefined, up: diff >= 0 }
+  return { diff, pct: first > 0 ? (diff / first) * 100 : 0, up: diff >= 0 }
 }
 
-/** "+15 lb", "−5 lb" (true minus sign). For assisted lifts: "35 lb less assist". */
-export function fmtDiff(c: Change, metric: Metric, first: number, last: number) {
-  const n = metric === 'e1rm' ? String(Math.round(Math.abs(c.diff))) : fmtNum(Math.round(Math.abs(c.diff) * 10) / 10)
-  if (metric === 'load' && first < 0 && last <= 0 && c.diff !== 0) {
-    return `${n} lb ${c.diff > 0 ? 'less' : 'more'} assist`
-  }
-  return `${c.diff >= 0 ? '+' : '−'}${n} lb`
+/** "+15 lb", "−5 lb" (true minus sign). */
+export function fmtDiff(c: Change) {
+  return `${c.diff >= 0 ? '+' : '−'}${Math.round(Math.abs(c.diff))} lb`
 }
 
 export function fmtPct(p: number) {

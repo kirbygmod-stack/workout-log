@@ -943,18 +943,29 @@ textarea.input {
 .chart-card[data-tone='down'] .chart {
   color: var(--danger);
 }
+.progress h1 {
+  margin-bottom: 10px;
+}
+/* Progress fits above the tab bar on a standard iPhone, so less dead space below. */
+.main:has(> .progress) {
+  padding-bottom: calc(var(--tabbar-h) + var(--tabbar-gap) + 12px);
+}
+.progress .card,
+.progress .lift-list {
+  margin-bottom: 10px;
+}
 .chart-card {
-  padding: 18px 18px 14px;
+  padding: 14px 16px 10px;
 }
 .chart-head {
   align-items: flex-start;
-  margin-bottom: 10px;
+  margin-bottom: 6px;
 }
 .chart-value {
   text-align: right;
 }
 .big-num {
-  font-size: 30px;
+  font-size: 28px;
   font-weight: 700;
   line-height: 1;
   margin-bottom: 4px;
@@ -990,18 +1001,18 @@ textarea.input {
 .chart-dates {
   font-size: 11px;
   color: var(--muted);
-  margin-top: 8px;
+  margin-top: 4px;
   min-height: 14px;
 }
 .range {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 6px;
-  margin: 0 0 12px;
+  margin: 0 0 10px;
 }
 .range button {
-  height: 44px;
-  border-radius: 22px;
+  height: 36px;
+  border-radius: 18px;
   border: 0;
   background: transparent;
   color: var(--muted);
@@ -1017,10 +1028,11 @@ textarea.input {
 .volume-card {
   border-radius: 24px;
   border-color: var(--line);
-  padding: 14px 16px;
+  padding: 10px 16px;
 }
 .vol-num {
-  font-size: 26px;
+  font-size: 22px;
+  line-height: 1.2;
   font-weight: 700;
 }
 .volume-card svg {
@@ -1035,8 +1047,8 @@ textarea.input {
 .lift-list {
   background: var(--surface);
   border: 1px solid var(--surface-2);
-  border-radius: 28px;
-  padding: 6px 10px;
+  border-radius: 24px;
+  padding: 4px 8px;
   margin-bottom: 12px;
 }
 .lift-row {
@@ -1044,8 +1056,8 @@ textarea.input {
   display: flex;
   align-items: center;
   gap: 12px;
-  min-height: 60px;
-  padding: 8px;
+  min-height: 46px;
+  padding: 4px 8px;
   background: none;
   border: 0;
   border-bottom: 1px solid var(--line);
@@ -1056,7 +1068,7 @@ textarea.input {
 }
 .lift-row.on {
   background: var(--surface-2);
-  border-radius: 16px;
+  border-radius: 14px;
   border-bottom-color: transparent;
 }
 .lift-name {
@@ -1073,7 +1085,4 @@ textarea.input {
 }
 .lift-chg {
   font-size: 11px;
-}
-.list-label {
-  margin: 8px 6px 8px;
 }

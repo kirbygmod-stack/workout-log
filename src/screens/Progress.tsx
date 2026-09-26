@@ -9,7 +9,6 @@ import {
   change,
   fmtBestSet,
   fmtDiff,
-  fmtLoad,
   fmtPct,
   fmtSpan,
   normName,
@@ -20,7 +19,6 @@ import {
   volumeBetween,
   weekStart,
   weeklyVolume,
-  type Metric,
   type Point,
   type RangeId,
 } from '../progress'
@@ -29,7 +27,6 @@ interface Lift {
   key: string
   label: string
   exercise?: Exercise
-  metric: Metric
   points: Point[]
 }
 
@@ -54,29 +51,24 @@ export function Progress() {
       if (list) list.push(s)
       else setsByExercise.set(s.exerciseId, [s])
     }
-    const pointsFor = (ex: Exercise, metric: Metric) => sessionPoints(setsByExercise.get(ex.id!) ?? [], metric, workouts)
+    const pointsFor = (ex: Exercise) => sessionPoints(setsByExercise.get(ex.id!) ?? [], workouts)
 
     const active = exercises.filter((e) => !e.archived)
     const big: Lift[] = BIG_FIVE.map(({ label, names }) => {
       const exercise =
         active.find((e) => e.kind === 'weight' && names.includes(normName(e.name))) ??
         exercises.find((e) => e.kind === 'weight' && names.includes(normName(e.name)))
-      return { key: `big:${label}`, label, exercise, metric: 'e1rm', points: exercise ? pointsFor(exercise, 'e1rm') : [] }
+      return { key: `big:${label}`, label, exercise, points: exercise ? pointsFor(exercise) : [] }
     })
-    const assisted: Lift[] = exercises
-      .filter((e) => e.kind === 'bodyweight' && e.assistable)
-      .map((e) => ({ key: `ex:${e.id}`, label: e.name, exercise: e, metric: 'load' as Metric, points: pointsFor(e, 'load') }))
-      .filter((l) => l.points.length > 0)
 
     const kinds = new Map(exercises.map((e) => [e.id!, e.kind]))
     const weeks = weeklyVolume(sets, (id) => kinds.get(id), now)
     const lastWeekSoFar = volumeBetween(sets, (id) => kinds.get(id), weekStart(now) - 7 * 86400000, now - 7 * 86400000)
-    return { big, assisted, weeks, lastWeekSoFar }
+    return { big, weeks, lastWeekSoFar }
   }, [data, range, now])
 
   if (!view) return null
-  const all = [...view.big, ...view.assisted]
-  const lift = all.find((l) => l.key === selected) ?? view.big.find((l) => l.points.length > 0) ?? view.big[0]
+  const lift = view.big.find((l) => l.key === selected) ?? view.big.find((l) => l.points.length > 0) ?? view.big[0]
 
   const pick = (key: string) => {
     setSelected(key)
@@ -106,34 +98,23 @@ export function Progress() {
         ))}
       </div>
 
-      {view.assisted.length > 0 && (
-        <>
-          <div className="kicker list-label">Bodyweight · less assist is up</div>
-          <div className="lift-list">
-            {view.assisted.map((l) => (
-              <LiftRow key={l.key} lift={l} on={l.key === lift.key} onPick={() => pick(l.key)} />
-            ))}
-          </div>
-        </>
-      )}
     </div>
   )
 }
 
 // ---------- chart card ----------
 
-const CHART_H = 150
+const CHART_H = 100
 
 function ChartCard({ lift }: { lift: Lift }) {
   const [w, ref] = useWidth<HTMLDivElement>()
   const [scrub, setScrub] = useState<number | null>(null)
-  const { points, metric } = lift
-  const pts = useMemo(() => scalePoints(points, w, CHART_H, 8, 16), [points, w])
-  const c = change(points, metric)
+  const { points } = lift
+  const pts = useMemo(() => scalePoints(points, w, CHART_H, 8, 12), [points, w])
+  const c = change(points)
   const enough = points.length >= 2
   const shown = scrub != null && points[scrub] ? points[scrub] : points.at(-1)
   const tone = c && !c.up ? 'down' : 'up'
-  const subtitle = metric === 'e1rm' ? 'estimated 1-rep max' : 'assist weight'
 
   const line = enough ? smoothPath(pts) : ''
   const area = enough ? `${line} L${pts.at(-1)!.x},${CHART_H} L${pts[0].x},${CHART_H} Z` : ''
@@ -154,20 +135,20 @@ function ChartCard({ lift }: { lift: Lift }) {
       <div className="row between chart-head">
         <div className="grow">
           <h3>{lift.exercise?.name ?? lift.label}</h3>
-          <div className="muted small">{subtitle}</div>
+          <div className="muted small">estimated 1-rep max</div>
         </div>
         <div className="chart-value">
           {shown ? (
             <>
               <div className="mono big-num">
-                {metric === 'e1rm' ? fmtLbs(shown.value) : fmtLoad(shown.value)}
+                {fmtLbs(shown.value)}
                 <span className="muted unit"> lb</span>
               </div>
               <div className={`mono small ${scrub != null ? 'muted' : tone}`}>
                 {scrub != null
-                  ? `${fmtBestSet(metric, shown.best)} · ${fmtDate(shown.t, { month: 'short', day: 'numeric' })}`
+                  ? `${fmtBestSet(shown.best)} · ${fmtDate(shown.t, { month: 'short', day: 'numeric' })}`
                   : c
-                    ? `${fmtDiff(c, metric, points[0].value, points.at(-1)!.value)} · ${fmtSpan(points)}`
+                    ? `${fmtDiff(c)} · ${fmtSpan(points)}`
                     : 'first session'}
               </div>
             </>
@@ -224,7 +205,7 @@ function ChartCard({ lift }: { lift: Lift }) {
 
 function chartLabel(lift: Lift) {
   const p = lift.points
-  const f = (v: number) => (lift.metric === 'e1rm' ? `${Math.round(v)} pounds` : fmtLoad(v))
+  const f = (v: number) => `${Math.round(v)} pounds`
   return `${lift.exercise?.name ?? lift.label}: ${f(p[0].value)} to ${f(p.at(-1)!.value)} over ${p.length} sessions`
 }
 
@@ -238,7 +219,7 @@ function VolumeCard({ weeks, lastWeekSoFar }: { weeks: { start: number; volume: 
   const max = Math.max(...weeks.map((w) => w.volume), 1)
   const BW = 10
   const GAP = 4
-  const H = 48
+  const H = 40
   return (
     <section className="card volume-card row between">
       <div>
@@ -279,32 +260,25 @@ function VolumeCard({ weeks, lastWeekSoFar }: { weeks: { start: number; volume: 
 // ---------- list rows ----------
 
 function LiftRow({ lift, on, onPick }: { lift: Lift; on: boolean; onPick: () => void }) {
-  const { points, metric } = lift
+  const { points } = lift
   const last = points.at(-1)
-  const c = change(points, metric)
+  const c = change(points)
   const tone = c && !c.up ? 'down' : 'up'
   return (
     <button className={`lift-row ${on ? 'on' : ''}`} onClick={onPick} aria-pressed={on}>
       <div className="grow">
         <div className="lift-name">{lift.label}</div>
-        <div className="mono small muted">{last ? fmtBestSet(metric, last.best) : lift.exercise ? 'no sessions' : 'not in library'}</div>
+        <div className="mono small muted">{last ? fmtBestSet(last.best) : lift.exercise ? 'no sessions' : 'not in library'}</div>
       </div>
       <Sparkline points={points} tone={tone} />
       <div className="lift-nums">
-        <div className="mono lift-val">{last ? (metric === 'e1rm' ? fmtLbs(last.value) : fmtLoad(last.value)) : '—'}</div>
+        <div className="mono lift-val">{last ? fmtLbs(last.value) : '—'}</div>
         <div className={`mono lift-chg ${c ? tone : 'muted'}`}>
-          {!c ? '—' : c.pct != null ? fmtPct(c.pct) : fmtListDiff(c.diff, points[0].value, last!.value)}
+          {c ? fmtPct(c.pct) : '—'}
         </div>
       </div>
     </button>
   )
-}
-
-/** Short change for bodyweight rows: "−35 assist" while assisted, else "+10 lb". */
-function fmtListDiff(diff: number, first: number, last: number) {
-  const n = fmtNum(Math.abs(Math.round(diff * 10) / 10))
-  if (first < 0 && last <= 0 && diff !== 0) return `${diff > 0 ? '−' : '+'}${n} assist`
-  return `${diff >= 0 ? '+' : '−'}${n} lb`
 }
 
 function Sparkline({ points, tone }: { points: Point[]; tone: string }) {
