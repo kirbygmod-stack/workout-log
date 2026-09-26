@@ -1,0 +1,64 @@
+import type { Exercise, SetEntry } from './db'
+import { fmtDuration, fmtNum } from './format'
+
+/** Estimated 1-rep max (Epley). A single is taken as-is. */
+export function e1rm(weight: number | undefined, reps: number | undefined) {
+  if (!weight || !reps) return 0
+  return reps === 1 ? weight : weight * (1 + reps / 30)
+}
+
+/** Best estimated 1-rep max across sets (0 if none qualify). */
+export function bestE1rm(sets: SetEntry[]) {
+  return sets.reduce((m, s) => Math.max(m, e1rm(s.weight, s.reps)), 0)
+}
+
+/** Total weight moved (weight × reps) for weighted sets. */
+export function volume(sets: SetEntry[], kindOf: (exerciseId: number) => Exercise['kind'] | undefined) {
+  return sets.reduce((sum, s) => (kindOf(s.exerciseId) === 'weight' ? sum + (s.weight ?? 0) * (s.reps ?? 0) : sum), 0)
+}
+
+/** Short value for a set tile: "190×8", "+25×8", "12", "0:45". */
+export function fmtTile(kind: Exercise['kind'], s: SetEntry) {
+  switch (kind) {
+    case 'weight':
+      return `${fmtNum(s.weight ?? 0)}×${s.reps ?? 0}`
+    case 'bodyweight':
+      return s.weight ? `+${fmtNum(s.weight)}×${s.reps ?? 0}` : `${s.reps ?? 0}`
+    case 'timed':
+    case 'cardio':
+      return fmtDuration(s.durationSec)
+  }
+}
+
+/** Compact summary of a session: "65×10 ×3" when every set matches, else "185×8 · 185×8 · 185×7". */
+export function fmtSession(kind: Exercise['kind'], sets: SetEntry[]) {
+  const tiles = sets.map((s) => fmtTile(kind, s))
+  if (tiles.length > 1 && tiles.every((t) => t === tiles[0])) return `${tiles[0]} ×${tiles.length}`
+  return tiles.join(' · ')
+}
+
+export interface Delta {
+  text: string
+  up: boolean
+}
+
+/** Change vs the same set last session. Weight first, then reps (or time for holds). */
+export function setDelta(kind: Exercise['kind'], now: SetEntry, before: SetEntry | undefined): Delta | null {
+  if (!before) return null
+  if (kind === 'weight' || kind === 'bodyweight') {
+    const dw = (now.weight ?? 0) - (before.weight ?? 0)
+    if (dw !== 0) return { text: `${dw > 0 ? '▲' : '▼'}${fmtNum(Math.abs(dw))} lb`, up: dw > 0 }
+    const dr = (now.reps ?? 0) - (before.reps ?? 0)
+    if (dr !== 0) return { text: `${dr > 0 ? '▲' : '▼'}${Math.abs(dr)} rep${Math.abs(dr) === 1 ? '' : 's'}`, up: dr > 0 }
+    return null
+  }
+  if (kind === 'timed') {
+    const dt = (now.durationSec ?? 0) - (before.durationSec ?? 0)
+    if (dt !== 0) return { text: `${dt > 0 ? '▲' : '▼'}${Math.abs(dt)}s`, up: dt > 0 }
+  }
+  return null
+}
+
+export function fmtLbs(n: number) {
+  return Math.round(n).toLocaleString('en-US')
+}

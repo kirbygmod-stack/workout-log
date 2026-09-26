@@ -1,11 +1,13 @@
 import { useLiveQuery } from 'dexie-react-hooks'
+import { useState } from 'react'
 import { db, getMeta, startWorkout, WORKOUT_TYPES, workoutTypeLabel, type Workout, type WorkoutType } from '../db'
-import { daysAgo } from '../format'
+import { daysAgo, fmtDate } from '../format'
 import { WorkoutView } from '../components/WorkoutView'
 
 export const BACKUP_REMINDER_DAYS = 7
 
 export function Today({ goToSettings }: { goToSettings: () => void }) {
+  const [today] = useState(() => Date.now())
   const state = useLiveQuery(async () => {
     const all = await db.workouts.orderBy('startedAt').reverse().toArray()
     const active = all.find((w) => !w.endedAt)
@@ -30,12 +32,15 @@ export function Today({ goToSettings }: { goToSettings: () => void }) {
           {lastBackup ? `Last backup ${daysAgo(lastBackup)}.` : 'No backup yet.'} Tap to back up your data.
         </button>
       )}
-      <h1>Start a workout</h1>
-      {lastFinished && (
-        <p className="muted">
-          Last: {workoutTypeLabel(lastFinished.type)} {daysAgo(lastFinished.startedAt)}
-        </p>
-      )}
+      <div className="today-head">
+        <div className="date-line">{fmtDate(today)}</div>
+        <h1>Start a workout</h1>
+        {lastFinished && (
+          <div className="muted small">
+            Last: {workoutTypeLabel(lastFinished.type)} {daysAgo(lastFinished.startedAt)}
+          </div>
+        )}
+      </div>
       <div className="start-grid">
         {WORKOUT_TYPES.map((t) => {
           const prev = lastByType[t.id]

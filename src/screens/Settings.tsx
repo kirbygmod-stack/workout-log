@@ -97,7 +97,7 @@ export function Settings() {
         </p>
       </section>
 
-      <p className="muted small center">Workout Log v1 · all weights in lbs</p>
+      <p className="muted small center footnote">Workout Log v2 · all weights in lbs</p>
     </div>
   )
 }

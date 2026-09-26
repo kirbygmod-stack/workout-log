@@ -1,45 +1,62 @@
-import { useState } from 'react'
+import { useId, useState } from 'react'
 import type { Exercise, SetEntry } from '../db'
 import { durationInput, fmtNum, parseDuration, parseNum } from '../format'
 
 export type SetValues = Pick<SetEntry, 'weight' | 'reps' | 'durationSec' | 'speed' | 'level' | 'calories' | 'restSec'>
 
-function Stepper({
+/** How a big field's −/+ buttons change its text value. */
+interface Step {
+  by: number
+  unit: string
+  bump: (value: string, delta: number) => string
+}
+
+const numStep = (by: number, unit: string): Step => ({
+  by,
+  unit,
+  bump: (v, d) => fmtNum(Math.max(0, Math.round(((parseNum(v) ?? 0) + d) * 10) / 10)),
+})
+const timeStep = (by: number, unit: string, bare: 'sec' | 'min'): Step => ({
+  by,
+  unit,
+  bump: (v, d) => durationInput(Math.max(0, (parseDuration(v, bare) ?? 0) + d * (bare === 'min' ? 60 : 1))),
+})
+
+function Big({
   label,
   value,
   onChange,
-  step,
   mode,
+  step,
   placeholder,
 }: {
   label: string
   value: string
   onChange: (v: string) => void
-  step: number
-  mode: 'decimal' | 'numeric'
+  mode: 'decimal' | 'numeric' | 'text'
+  step: Step
   placeholder?: string
 }) {
-  const bump = (d: number) => {
-    const n = parseNum(value) ?? 0
-    onChange(fmtNum(Math.max(0, n + d)))
-  }
+  const id = useId()
   return (
-    <label className="field">
-      <span className="field-label">{label}</span>
-      <div className="stepper">
-        <button type="button" className="step" onClick={() => bump(-step)} aria-label={`${label} minus ${step}`}>
+    <div className="big">
+      <label htmlFor={id} className="big-label">
+        {label}
+      </label>
+      <input id={id} className="big-input" inputMode={mode} value={value} placeholder={placeholder} onChange={(e) => onChange(e.target.value)} />
+      <div className="big-steps">
+        <button type="button" className="round" aria-label={`${label} minus ${step.by} ${step.unit}`} onClick={() => onChange(step.bump(value, -step.by))}>
           −
         </button>
-        <input className="input num" inputMode={mode} value={value} placeholder={placeholder} onChange={(e) => onChange(e.target.value)} />
-        <button type="button" className="step" onClick={() => bump(step)} aria-label={`${label} plus ${step}`}>
+        <button type="button" className="round" aria-label={`${label} plus ${step.by} ${step.unit}`} onClick={() => onChange(step.bump(value, step.by))}>
           +
         </button>
       </div>
-    </label>
+    </div>
   )
 }
 
-function Plain({
+function Small({
   label,
   value,
   onChange,
@@ -122,63 +139,66 @@ export function SetForm({
       const c = parseNum(calories)
       if (c != null) v.calories = c
     }
-    if (showRest) {
-      const r = parseDuration(rest, 'sec')
-      v.restSec = r
-    }
+    if (showRest) v.restSec = parseDuration(rest, 'sec')
     setError('')
     onSubmit(v)
   }
 
   return (
     <div className="set-form">
-      <div className="set-fields">
+      <div className="big-fields">
         {kind === 'weight' && (
           <>
-            <Stepper label="lbs" value={weight} onChange={setWeight} step={5} mode="decimal" />
-            <Stepper label="Reps" value={reps} onChange={setReps} step={1} mode="numeric" />
+            <Big label="LBS" value={weight} onChange={setWeight} mode="decimal" step={numStep(5, 'lbs')} />
+            <Big label="REPS" value={reps} onChange={setReps} mode="numeric" step={numStep(1, 'rep')} />
           </>
         )}
         {kind === 'bodyweight' && (
           <>
-            <Stepper label="Reps" value={reps} onChange={setReps} step={1} mode="numeric" />
-            <Stepper label="+ lbs (optional)" value={weight} onChange={setWeight} step={5} mode="decimal" placeholder="0" />
+            <Big label="REPS" value={reps} onChange={setReps} mode="numeric" step={numStep(1, 'rep')} />
+            <Big label="+ LBS" value={weight} onChange={setWeight} mode="decimal" step={numStep(5, 'lbs')} placeholder="0" />
           </>
         )}
         {kind === 'timed' && (
           <>
-            <Plain label="Time (sec or m:ss)" value={duration} onChange={setDuration} mode="text" placeholder="0:45" />
-            <Plain label="+ lbs (optional)" value={weight} onChange={setWeight} placeholder="0" />
+            <Big label="TIME" value={duration} onChange={setDuration} mode="text" step={timeStep(5, 'seconds', 'sec')} placeholder="0:45" />
+            <Big label="+ LBS" value={weight} onChange={setWeight} mode="decimal" step={numStep(5, 'lbs')} placeholder="0" />
           </>
         )}
         {kind === 'cardio' && (
           <>
-            <Plain label="Minutes (or mm:ss)" value={duration} onChange={setDuration} mode="text" placeholder="30" />
-            <Plain label="Speed (mph)" value={speed} onChange={setSpeed} placeholder="6.0" />
-            {exercise.levelLabel !== '' && (
-              <Plain label={`${exercise.levelLabel || 'Incline / Level'} (opt.)`} value={level} onChange={setLevel} />
-            )}
-            <Plain label="Calories (opt.)" value={calories} onChange={setCalories} mode="numeric" />
+            <Big label="MIN" value={duration} onChange={setDuration} mode="text" step={timeStep(1, 'minute', 'min')} placeholder="30" />
+            <Big label="MPH" value={speed} onChange={setSpeed} mode="decimal" step={numStep(0.1, 'mph')} placeholder="6.0" />
           </>
         )}
-        {showRest && <Plain label="Rest before (m:ss)" value={rest} onChange={setRest} mode="text" placeholder="—" />}
       </div>
+      {(kind === 'cardio' || showRest) && (
+        <div className="small-fields">
+          {kind === 'cardio' && exercise.levelLabel !== '' && (
+            <Small label={exercise.levelLabel || 'Incline / Level'} value={level} onChange={setLevel} placeholder="—" />
+          )}
+          {kind === 'cardio' && <Small label="Calories" value={calories} onChange={setCalories} mode="numeric" placeholder="—" />}
+          {showRest && <Small label="Rest before (m:ss)" value={rest} onChange={setRest} mode="text" placeholder="—" />}
+        </div>
+      )}
       {error && <div className="error">{error}</div>}
-      <div className="row gap">
-        <button type="button" className="btn primary grow" onClick={submit}>
-          {submitLabel}
-        </button>
-        {onCancel && (
-          <button type="button" className="btn" onClick={onCancel}>
-            Cancel
-          </button>
-        )}
-        {onDelete && (
-          <button type="button" className="btn danger" onClick={onDelete}>
-            Delete
-          </button>
-        )}
-      </div>
+      <button type="button" className="btn primary log-btn" onClick={submit}>
+        {submitLabel}
+      </button>
+      {(onCancel || onDelete) && (
+        <div className="row gap form-extra">
+          {onCancel && (
+            <button type="button" className="btn grow" onClick={onCancel}>
+              Cancel
+            </button>
+          )}
+          {onDelete && (
+            <button type="button" className="btn danger grow" onClick={onDelete}>
+              Delete set
+            </button>
+          )}
+        </div>
+      )}
     </div>
   )
 }

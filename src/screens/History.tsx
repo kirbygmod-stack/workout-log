@@ -38,7 +38,7 @@ export function History() {
                 <strong>
                   {workoutTypeLabel(w.type)} <span className="muted">· {fmtDate(w.startedAt)}</span>
                 </strong>
-                <span className="muted small">{fmtDuration((w.endedAt! - w.startedAt) / 1000)}</span>
+                <span className="muted small mono">{fmtDuration((w.endedAt! - w.startedAt) / 1000)}</span>
               </div>
               <div className="muted small clamp">
                 {setCount} sets · {names.join(', ') || 'no exercises'}
