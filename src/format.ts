@@ -37,6 +37,7 @@ export function fmtSet(ex: Pick<Exercise, 'kind' | 'levelLabel'>, s: SetEntry) {
     case 'weight':
       return `${fmtNum(s.weight ?? 0)} × ${s.reps ?? 0}`
     case 'bodyweight':
+      if (s.assist) return `Assist ${fmtNum(s.assist)} × ${s.reps ?? 0}`
       return s.weight ? `BW+${fmtNum(s.weight)} × ${s.reps ?? 0}` : `${s.reps ?? 0} reps`
     case 'timed':
       return s.weight ? `${fmtDuration(s.durationSec)} +${fmtNum(s.weight)}` : fmtDuration(s.durationSec)

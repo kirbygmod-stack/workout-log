@@ -20,7 +20,7 @@ function Elapsed({ from }: { from: number }) {
 /** "Next · Incline DB Press   last 65×10 ×3" */
 function NextUp({ exercise, workoutId, onGo }: { exercise: Exercise; workoutId: number; onGo: () => void }) {
   const last = useLiveQuery(() => lastSessionFor(exercise.id!, workoutId), [exercise.id, workoutId])
-  const summary = last ? (exercise.kind === 'cardio' ? fmtSet(exercise, last.sets[0]) : fmtSession(exercise.kind, last.sets)) : ''
+  const summary = last ? (exercise.kind === 'cardio' ? fmtSet(exercise, last.sets[0]) : fmtSession(exercise.kind, last.sets, exercise.assistable)) : ''
   return (
     <button className="next-up" onClick={onGo}>
       <span className="muted">

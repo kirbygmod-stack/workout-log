@@ -1,8 +1,8 @@
-import { useId, useState } from 'react'
-import type { Exercise, SetEntry } from '../db'
+import { useId, useState, type ReactNode } from 'react'
+import { MAX_ASSIST_LB, type Exercise, type SetEntry } from '../db'
 import { durationInput, fmtNum, parseDuration, parseNum } from '../format'
 
-export type SetValues = Pick<SetEntry, 'weight' | 'reps' | 'durationSec' | 'speed' | 'level' | 'calories' | 'restSec'>
+export type SetValues = Pick<SetEntry, 'weight' | 'assist' | 'reps' | 'durationSec' | 'speed' | 'level' | 'calories' | 'restSec'>
 
 /** How a big field's −/+ buttons change its text value. */
 interface Step {
@@ -29,8 +29,11 @@ function Big({
   mode,
   step,
   placeholder,
+  header,
 }: {
   label: string
+  /** Replaces the visible label (e.g. the Added/Assist toggle); `label` still names the input. */
+  header?: ReactNode
   value: string
   onChange: (v: string) => void
   mode: 'decimal' | 'numeric' | 'text'
@@ -40,10 +43,12 @@ function Big({
   const id = useId()
   return (
     <div className="big">
-      <label htmlFor={id} className="big-label">
-        {label}
-      </label>
-      <input id={id} className="big-input" inputMode={mode} value={value} placeholder={placeholder} onChange={(e) => onChange(e.target.value)} />
+      {header ?? (
+        <label htmlFor={id} className="big-label">
+          {label}
+        </label>
+      )}
+      <input id={id} aria-label={header ? label : undefined} className="big-input" inputMode={mode} value={value} placeholder={placeholder} onChange={(e) => onChange(e.target.value)} />
       <div className="big-steps">
         <button type="button" className="round" aria-label={`${label} minus ${step.by} ${step.unit}`} onClick={() => onChange(step.bump(value, -step.by))}>
           −
@@ -99,7 +104,9 @@ export function SetForm({
   onDelete?: () => void
 }) {
   const kind = exercise.kind
-  const [weight, setWeight] = useState(fmtNum(initial?.weight))
+  const canAssist = kind === 'bodyweight' && !!exercise.assistable
+  const [assistMode, setAssistMode] = useState(canAssist && !!initial?.assist)
+  const [weight, setWeight] = useState(fmtNum(canAssist && initial?.assist ? initial.assist : initial?.weight))
   const [reps, setReps] = useState(initial?.reps != null ? String(initial.reps) : '')
   const [duration, setDuration] = useState(durationInput(initial?.durationSec))
   const [speed, setSpeed] = useState(fmtNum(initial?.speed))
@@ -117,7 +124,10 @@ export function SetForm({
       const w = parseNum(weight)
       if (kind === 'weight' && w == null) return setError('Enter weight.')
       if (w != null && w < 0) return setError('Weight can’t be negative.')
-      if (w) v.weight = w
+      if (canAssist && assistMode) {
+        if (w != null && w > MAX_ASSIST_LB) return setError(`Assist tops out at ${MAX_ASSIST_LB} lb.`)
+        if (w) v.assist = w // 0 assist = plain bodyweight
+      } else if (w) v.weight = w
       else if (kind === 'weight') v.weight = 0
     }
     if (kind === 'timed') {
@@ -156,7 +166,26 @@ export function SetForm({
         {kind === 'bodyweight' && (
           <>
             <Big label="REPS" value={reps} onChange={setReps} mode="numeric" step={numStep(1, 'rep')} />
-            <Big label="+ LBS" value={weight} onChange={setWeight} mode="decimal" step={numStep(5, 'lbs')} placeholder="0" />
+            <Big
+              label={assistMode ? 'ASSIST LBS' : '+ LBS'}
+              value={weight}
+              onChange={setWeight}
+              mode="decimal"
+              step={numStep(5, 'lbs')}
+              placeholder="0"
+              header={
+                canAssist ? (
+                  <div className="mode-toggle" role="group" aria-label="Weight mode">
+                    <button type="button" className={assistMode ? '' : 'on'} aria-pressed={!assistMode} onClick={() => setAssistMode(false)}>
+                      Added
+                    </button>
+                    <button type="button" className={assistMode ? 'on' : ''} aria-pressed={assistMode} onClick={() => setAssistMode(true)}>
+                      Assist
+                    </button>
+                  </div>
+                ) : undefined
+              }
+            />
           </>
         )}
         {kind === 'timed' && (

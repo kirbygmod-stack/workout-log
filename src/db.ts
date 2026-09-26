@@ -35,6 +35,8 @@ export interface Exercise {
   levelLabel?: string
   /** Hidden from the picker, history kept. */
   archived?: boolean
+  /** Bodyweight only: sets can be logged as machine/band assisted (schema v2). */
+  assistable?: boolean
   createdAt: number
 }
 
@@ -63,6 +65,8 @@ export interface SetEntry {
   restSec?: number
   /** Lifts: working weight. Bodyweight: added weight. lbs */
   weight?: number
+  /** Bodyweight (assistable exercises): assistance, lbs > 0. Less is progress. When set, `weight` is absent. */
+  assist?: number
   reps?: number
   /** Timed holds and cardio. */
   durationSec?: number
@@ -94,6 +98,34 @@ db.version(1).stores({
   meta: 'key',
 })
 
+// v2: exercises gain `assistable`, sets gain `assist`. Neither is indexed, so the stores are unchanged;
+// the upgrade turns assist on for the lifts that use it.
+db.version(2)
+  .stores({
+    exercises: '++id, section, name',
+    workouts: '++id, startedAt, type',
+    workoutExercises: '++id, workoutId, exerciseId',
+    sets: '++id, workoutExerciseId, workoutId, exerciseId',
+    meta: 'key',
+  })
+  .upgrade((tx) =>
+    tx
+      .table('exercises')
+      .toCollection()
+      .modify((e: Exercise) => {
+        if (isDefaultAssistable(e)) e.assistable = true
+      }),
+  )
+
+/** Exercises that get the Assist option by default: pull-ups, dips, push-ups. */
+const ASSISTABLE_NAMES = new Set(['pullup', 'pullups', 'dip', 'dips', 'pushup', 'pushups'])
+export function isDefaultAssistable(e: Pick<Exercise, 'name' | 'kind'>) {
+  return e.kind === 'bodyweight' && ASSISTABLE_NAMES.has(e.name.toLowerCase().replace(/[^a-z]/g, ''))
+}
+
+/** Max assist the input accepts, lbs. */
+export const MAX_ASSIST_LB = 300
+
 type Seed = [string, Section, Kind, number, string?]
 const SEED: Seed[] = [
   ['Bench Press', 'push', 'weight', 150],
@@ -119,6 +151,7 @@ const SEED: Seed[] = [
   ['Ab Wheel Rollout', 'abs', 'bodyweight', 60],
   ['Push-up', 'bodyweight', 'bodyweight', 60],
   ['Pull-up', 'bodyweight', 'bodyweight', 90],
+  ['Dips', 'bodyweight', 'bodyweight', 90],
   ['Plank', 'bodyweight', 'timed', 60],
   ['Bodyweight Squat', 'bodyweight', 'bodyweight', 60],
   ['Treadmill', 'cardio', 'cardio', 0, 'Incline %'],
@@ -134,6 +167,7 @@ db.on('populate', (tx) => {
       section,
       kind,
       targetRestSec,
+      ...(isDefaultAssistable({ name, kind }) ? { assistable: true } : {}),
       ...(kind === 'cardio' ? { levelLabel: levelLabel ?? 'Incline / Level' } : {}),
       createdAt: now,
     })),
@@ -221,9 +255,12 @@ export const MAX_RECORDED_REST_SEC = 20 * 60
 
 // ---------- Backup ----------
 
+/** Current backup format. v1: original. v2: adds exercises.assistable and sets.assist. */
+export const BACKUP_VERSION = 2
+
 export interface BackupFile {
   app: 'workout-log'
-  version: 1
+  version: number
   exportedAt: string
   exercises: Exercise[]
   workouts: Workout[]
@@ -234,7 +271,7 @@ export interface BackupFile {
 export async function exportData(): Promise<BackupFile> {
   return {
     app: 'workout-log',
-    version: 1,
+    version: BACKUP_VERSION,
     exportedAt: new Date().toISOString(),
     exercises: await db.exercises.toArray(),
     workouts: await db.workouts.toArray(),
@@ -247,9 +284,18 @@ export async function importData(data: BackupFile) {
   if (data?.app !== 'workout-log' || !Array.isArray(data.exercises) || !Array.isArray(data.sets)) {
     throw new Error("That file isn't a Workout Log backup.")
   }
+  const v = data.version
+  if (typeof v !== 'number' || !Number.isInteger(v) || v < 1) {
+    throw new Error('That backup has no valid format version, so it can’t be restored safely.')
+  }
+  if (v > BACKUP_VERSION) {
+    throw new Error(`That backup is format v${v}, newer than this app understands (v${BACKUP_VERSION}). Update the app first: close it fully and reopen.`)
+  }
+  // v1 → v2: flag the default assistable exercises, same as the database upgrade.
+  const exercises = v < 2 ? data.exercises.map((e) => (isDefaultAssistable(e) ? { ...e, assistable: true } : e)) : data.exercises
   await db.transaction('rw', [db.exercises, db.workouts, db.workoutExercises, db.sets], async () => {
     await Promise.all([db.exercises.clear(), db.workouts.clear(), db.workoutExercises.clear(), db.sets.clear()])
-    await db.exercises.bulkAdd(data.exercises)
+    await db.exercises.bulkAdd(exercises)
     await db.workouts.bulkAdd(data.workouts)
     await db.workoutExercises.bulkAdd(data.workoutExercises)
     await db.sets.bulkAdd(data.sets)

@@ -77,6 +77,7 @@ function ExerciseEditor({ exercise, onClose }: { exercise: Exercise; onClose: ()
   const [kind, setKind] = useState<Kind>(exercise.kind)
   const [rest, setRest] = useState(durationInput(exercise.targetRestSec))
   const [levelLabel, setLevelLabel] = useState(exercise.levelLabel ?? 'Incline / Level')
+  const [assistable, setAssistable] = useState(!!exercise.assistable)
   const [error, setError] = useState('')
 
   const history = useLiveQuery(async () => {
@@ -104,6 +105,7 @@ function ExerciseEditor({ exercise, onClose }: { exercise: Exercise; onClose: ()
       kind: k,
       targetRestSec: restSec,
       levelLabel: k === 'cardio' ? levelLabel.trim() : undefined,
+      assistable: k === 'bodyweight' && assistable ? true : undefined,
     }
     if (isNew) await db.exercises.add(data)
     else await db.exercises.put(data)
@@ -153,6 +155,15 @@ function ExerciseEditor({ exercise, onClose }: { exercise: Exercise; onClose: ()
               </option>
             ))}
           </select>
+        </label>
+      )}
+      {effectiveKind === 'bodyweight' && (
+        <label className="field check-field">
+          <input type="checkbox" checked={assistable} onChange={(e) => setAssistable(e.target.checked)} />
+          <span>
+            Assisted option
+            <span className="muted small"> · log assist lbs (machine or band); less assist counts as progress</span>
+          </span>
         </label>
       )}
       {section === 'cardio' ? (

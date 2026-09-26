@@ -17,13 +17,18 @@ export function volume(sets: SetEntry[], kindOf: (exerciseId: number) => Exercis
   return sets.reduce((sum, s) => (kindOf(s.exerciseId) === 'weight' ? sum + (s.weight ?? 0) * (s.reps ?? 0) : sum), 0)
 }
 
-/** Short value for a set tile: "190×8", "+25×8", "12", "0:45". */
-export function fmtTile(kind: Exercise['kind'], s: SetEntry) {
+/**
+ * Short value for a set tile: "190×8", "+25×8", "12", "0:45".
+ * Assistable exercises: "A50×8" (assisted), "BW×8" (unassisted), "+25×8" (added).
+ */
+export function fmtTile(kind: Exercise['kind'], s: SetEntry, assistable?: boolean) {
   switch (kind) {
     case 'weight':
       return `${fmtNum(s.weight ?? 0)}×${s.reps ?? 0}`
     case 'bodyweight':
-      return s.weight ? `+${fmtNum(s.weight)}×${s.reps ?? 0}` : `${s.reps ?? 0}`
+      if (s.assist) return `A${fmtNum(s.assist)}×${s.reps ?? 0}`
+      if (s.weight) return `+${fmtNum(s.weight)}×${s.reps ?? 0}`
+      return assistable ? `BW×${s.reps ?? 0}` : `${s.reps ?? 0}`
     case 'timed':
     case 'cardio':
       return fmtDuration(s.durationSec)
@@ -31,8 +36,8 @@ export function fmtTile(kind: Exercise['kind'], s: SetEntry) {
 }
 
 /** Compact summary of a session: "65×10 ×3" when every set matches, else "185×8 · 185×8 · 185×7". */
-export function fmtSession(kind: Exercise['kind'], sets: SetEntry[]) {
-  const tiles = sets.map((s) => fmtTile(kind, s))
+export function fmtSession(kind: Exercise['kind'], sets: SetEntry[], assistable?: boolean) {
+  const tiles = sets.map((s) => fmtTile(kind, s, assistable))
   if (tiles.length > 1 && tiles.every((t) => t === tiles[0])) return `${tiles[0]} ×${tiles.length}`
   return tiles.join(' · ')
 }
@@ -42,11 +47,14 @@ export interface Delta {
   up: boolean
 }
 
-/** Change vs the same set last session. Weight first, then reps (or time for holds). */
+/** Load relative to bodyweight: added weight counts +, assistance counts −. */
+const effectiveLoad = (s: SetEntry) => (s.weight ?? 0) - (s.assist ?? 0)
+
+/** Change vs the same set last session. Load first (less assist = up), then reps (or time for holds). */
 export function setDelta(kind: Exercise['kind'], now: SetEntry, before: SetEntry | undefined): Delta | null {
   if (!before) return null
   if (kind === 'weight' || kind === 'bodyweight') {
-    const dw = (now.weight ?? 0) - (before.weight ?? 0)
+    const dw = effectiveLoad(now) - effectiveLoad(before)
     if (dw !== 0) return { text: `${dw > 0 ? '▲' : '▼'}${fmtNum(Math.abs(dw))} lb`, up: dw > 0 }
     const dr = (now.reps ?? 0) - (before.reps ?? 0)
     if (dr !== 0) return { text: `${dr > 0 ? '▲' : '▼'}${Math.abs(dr)} rep${Math.abs(dr) === 1 ? '' : 's'}`, up: dr > 0 }

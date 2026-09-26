@@ -41,6 +41,7 @@ export function ExerciseCard({
   const template = sets.at(-1) ?? last?.sets[Math.min(idx, (last?.sets.length ?? 1) - 1)]
   const initial: SetValues | undefined = template && {
     weight: template.weight,
+    assist: exercise.assistable ? template.assist : undefined,
     reps: template.reps,
     durationSec: template.durationSec,
     speed: template.speed,
@@ -86,7 +87,7 @@ export function ExerciseCard({
   }
 
   const showForm = live || adding
-  const lastLine = last ? (kind === 'cardio' ? last.sets.map((s) => fmtSet(exercise, s)).join(' · ') : fmtSession(kind, last.sets)) : null
+  const lastLine = last ? (kind === 'cardio' ? last.sets.map((s) => fmtSet(exercise, s)).join(' · ') : fmtSession(kind, last.sets, exercise.assistable)) : null
 
   return (
     <section className={`card ex-card ${live ? 'focus' : ''}`}>
@@ -137,7 +138,7 @@ export function ExerciseCard({
             return (
               <li key={s.id}>
                 <button className="tile" onClick={() => setEditing({ set: s, index: i })} aria-label={`Edit set ${i + 1}`}>
-                  <span className="tile-val mono">{fmtTile(kind, s)}</span>
+                  <span className="tile-val mono">{fmtTile(kind, s, exercise.assistable)}</span>
                   <span className={`tile-sub mono ${delta ? (delta.up ? 'up' : 'down') : ''}`}>
                     {kind === 'cardio'
                       ? `${fmtNum(s.speed)} mph`
@@ -194,7 +195,8 @@ export function ExerciseCard({
             showRest
             submitLabel="Save"
             onSubmit={async (v) => {
-              await db.sets.update(editing.set.id!, { ...v, restSec: v.restSec })
+              // Explicit undefineds clear fields the edit removed (e.g. switching Assist → Added).
+              await db.sets.update(editing.set.id!, { weight: undefined, assist: undefined, ...v, restSec: v.restSec })
               setEditing(null)
             }}
             onDelete={async () => {
