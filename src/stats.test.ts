@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { SetEntry } from './db'
-import { bestE1rm, e1rm, fmtLbs, fmtSession, fmtTile, setDelta, volume } from './stats'
+import { bestE1rm, e1rm, fmtLbs, fmtSession, fmtTile, setDelta, setVolume, volume } from './stats'
 
 const set = (o: Partial<SetEntry>): SetEntry => ({ workoutExerciseId: 1, workoutId: 1, exerciseId: 1, completedAt: 0, ...o })
 
@@ -40,6 +40,16 @@ describe('volume', () => {
   it('treats missing numbers as 0 and unknown exercises as not weighted', () => {
     expect(volume([set({ exerciseId: 1, reps: 5 })], kindOf)).toBe(0)
     expect(volume([set({ exerciseId: 99, weight: 100, reps: 5 })], kindOf)).toBe(0)
+  })
+})
+
+describe('setVolume', () => {
+  const kindOf = (id: number) => (id === 1 ? 'weight' : id === 2 ? 'bodyweight' : undefined)
+  it('is weight × reps for weighted lifts, 0 for everything else', () => {
+    expect(setVolume(set({ exerciseId: 1, weight: 100, reps: 5 }), kindOf)).toBe(500)
+    expect(setVolume(set({ exerciseId: 1, weight: 100 }), kindOf)).toBe(0)
+    expect(setVolume(set({ exerciseId: 2, weight: 25, reps: 8 }), kindOf)).toBe(0)
+    expect(setVolume(set({ exerciseId: 99, weight: 100, reps: 5 }), kindOf)).toBe(0)
   })
 })
 

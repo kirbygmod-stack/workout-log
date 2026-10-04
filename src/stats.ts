@@ -12,9 +12,16 @@ export function bestE1rm(sets: SetEntry[]) {
   return sets.reduce((m, s) => Math.max(m, e1rm(s.weight, s.reps)), 0)
 }
 
+type KindOf = (exerciseId: number) => Exercise['kind'] | undefined
+
+/** One set's volume (weight × reps). Only weighted lifts count; bodyweight, timed and cardio add 0. */
+export function setVolume(s: SetEntry, kindOf: KindOf) {
+  return kindOf(s.exerciseId) === 'weight' ? (s.weight ?? 0) * (s.reps ?? 0) : 0
+}
+
 /** Total weight moved (weight × reps) for weighted sets. */
-export function volume(sets: SetEntry[], kindOf: (exerciseId: number) => Exercise['kind'] | undefined) {
-  return sets.reduce((sum, s) => (kindOf(s.exerciseId) === 'weight' ? sum + (s.weight ?? 0) * (s.reps ?? 0) : sum), 0)
+export function volume(sets: SetEntry[], kindOf: KindOf) {
+  return sets.reduce((sum, s) => sum + setVolume(s, kindOf), 0)
 }
 
 /**
