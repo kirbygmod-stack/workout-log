@@ -412,3 +412,92 @@ export function monotone(pts: { x: number; y: number }[]) {
   }
   return { at, path }
 }
+
+// ---------- trends and projections ----------
+
+/** Trend now minus trend `days` ago (latest weigh-in on or before that day; falls back to the first weigh-in). */
+export function trendChange(pts: TrendPoint[], today: number, days: number | 'all') {
+  if (pts.length < 2) return null
+  const now = pts.at(-1)!.trend
+  const start = days === 'all' ? pts[0].trend : (trendOnOrBefore(pts, today - days) ?? pts[0].trend)
+  return now - start
+}
+
+/** Overall rate, lb per day: trend change from the first to the latest weigh-in over the days between. */
+export function overallSlope(pts: TrendPoint[]) {
+  if (pts.length < 2) return null
+  const span = pts.at(-1)!.day - pts[0].day
+  if (span < MIN_SPAN) return null
+  return (pts.at(-1)!.trend - pts[0].trend) / span
+}
+
+export type RateId = 'current' | 'overall' | 'target'
+
+/**
+ * The three Projections rates, lb per day (signed: negative = losing).
+ * Target is a positive lb/week pace; it points toward the goal (losing when there's no goal).
+ */
+export function rates(pts: TrendPoint[], today: number, goal: WeightGoal | undefined, targetPerWeek: number | undefined) {
+  const dir = goal ? goalDir(goal, pts.at(-1)?.trend) : 'down'
+  return {
+    current: trendSlope(pts, today),
+    overall: overallSlope(pts),
+    target: targetPerWeek == null ? null : ((dir === 'down' ? -1 : 1) * targetPerWeek) / 7,
+  } satisfies Record<RateId, number | null>
+}
+
+/** Weight `days` from the latest trend at `slope` lb/day. */
+export function forecast(pts: TrendPoint[], slope: number, days: number) {
+  const trend = pts.at(-1)?.trend
+  return trend == null ? null : trend + slope * days
+}
+
+export type Eta = { kind: 'date'; days: number } | { kind: 'far' } | { kind: 'reached' } | { kind: 'away' } | { kind: 'few' }
+
+/** When the trend reaches `target` at `slope` lb/day, counted from today. Same rules as the goal projection. */
+export function etaTo(pts: TrendPoint[], target: number, dir: 'down' | 'up', slope: number | null): Eta {
+  const trend = pts.at(-1)?.trend
+  if (trend == null) return { kind: 'few' }
+  if (dir === 'down' ? trend <= target : trend >= target) return { kind: 'reached' }
+  if (pts.length < MIN_WEIGHINS_FOR_PROJECTION) return { kind: 'few' }
+  if (slope == null || slope === 0 || (dir === 'down' ? slope > 0 : slope < 0)) return { kind: 'away' }
+  const days = Math.ceil((target - trend) / slope)
+  if (days > 730) return { kind: 'far' }
+  return { kind: 'date', days }
+}
+
+/** Every 10 lb from the trend toward the goal, not including the goal itself (whole numbers). */
+export function milestones(trend: number, goal: number, dir: 'down' | 'up') {
+  const out: number[] = []
+  if (dir === 'down') for (let w = Math.ceil(trend / 10) * 10 - 10; w > goal; w -= 10) out.push(w)
+  else for (let w = Math.floor(trend / 10) * 10 + 10; w < goal; w += 10) out.push(w)
+  return out
+}
+
+/** Progress from the trend at the first weigh-in to the goal: amount done (toward the goal, never below 0) and percent (0–100). */
+export function goalProgress(pts: TrendPoint[], goal: number, dir: 'down' | 'up') {
+  if (pts.length === 0) return null
+  const start = pts[0].trend
+  const now = pts.at(-1)!.trend
+  const sign = dir === 'down' ? -1 : 1
+  const total = sign * (goal - start)
+  const done = Math.max(0, sign * (now - start))
+  // A goal on the other side of the starting trend (e.g. a gain goal set while above it) counts as 0% until reached.
+  const pct = total <= 0 ? 0 : Math.min(100, Math.max(0, (done / total) * 100))
+  return { done, pct, toGo: Math.max(0, sign * (goal - now)) }
+}
+
+/** "in 5 days", "in 3 weeks", "in 10 months". */
+export function relDays(n: number) {
+  if (n <= 0) return 'today'
+  const plural = (v: number, unit: string) => `in ${v} ${unit}${v === 1 ? '' : 's'}`
+  if (n < 14) return plural(n, 'day')
+  if (n < 60) return plural(Math.round(n / 7), 'week')
+  return plural(Math.round(n / 30.44), 'month')
+}
+
+/** A future day as "Oct 11", with the year when it isn't this year ("Jul 26, 2027"). */
+export function fmtFuture(day: number, today: number) {
+  const sameYear = dateOf(day).slice(0, 4) === dateOf(today).slice(0, 4)
+  return fmtDay(day, sameYear ? { month: 'short', day: 'numeric' } : { month: 'short', day: 'numeric', year: 'numeric' })
+}

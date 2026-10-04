@@ -260,6 +260,16 @@ export async function setWeightGoal(goal: WeightGoal) {
   await setMeta(WEIGHT_GOAL_KEY, goal)
 }
 
+/** Target pace for Projections, lb per week (always positive; the goal sets the direction). */
+export const MIN_TARGET_RATE = 0.25
+export const MAX_TARGET_RATE = 3
+const TARGET_RATE_KEY = 'weightTargetRate'
+export const getTargetRate = () => getMeta<number>(TARGET_RATE_KEY)
+export async function setTargetRate(rate: number) {
+  await setMeta(TARGET_RATE_KEY, rate)
+}
+const validRate = (r: unknown): r is number => typeof r === 'number' && isFinite(r) && r >= MIN_TARGET_RATE && r <= MAX_TARGET_RATE
+
 /**
  * Saves the weigh-in for `date`, replacing that day's entry if there is one.
  * When editing an entry and its date changes, `fromDate` is removed in the same transaction.
@@ -352,8 +362,8 @@ export const MAX_RECORDED_REST_SEC = 20 * 60
 
 // ---------- Backup ----------
 
-/** Current backup format. v1: original. v2: adds exercises.assistable and sets.assist. v3: adds weights and weightGoal. */
-export const BACKUP_VERSION = 3
+/** Current backup format. v1: original. v2: adds exercises.assistable and sets.assist. v3: adds weights and weightGoal. v4: adds weightTargetRate. */
+export const BACKUP_VERSION = 4
 
 export interface BackupFile {
   app: 'workout-log'
@@ -367,6 +377,8 @@ export interface BackupFile {
   weights?: WeightEntry[]
   /** v3+. null = no goal. */
   weightGoal?: WeightGoal | null
+  /** v4+. lb per week, null = not set. */
+  weightTargetRate?: number | null
 }
 
 export async function exportData(): Promise<BackupFile> {
@@ -380,6 +392,7 @@ export async function exportData(): Promise<BackupFile> {
     sets: await db.sets.toArray(),
     weights: await db.weights.orderBy('date').toArray(),
     weightGoal: (await getWeightGoal()) ?? null,
+    weightTargetRate: (await getTargetRate()) ?? null,
   }
 }
 
@@ -402,6 +415,8 @@ export async function importData(data: BackupFile) {
     throw new Error('That backup has a weigh-in it can’t read, so it can’t be restored safely.')
   }
   const goal = v >= 3 && data.weightGoal && typeof data.weightGoal.weight === 'number' ? data.weightGoal : null
+  // v1–v3 files have no target rate; restoring one clears it.
+  const targetRate = v >= 4 && validRate(data.weightTargetRate) ? data.weightTargetRate : null
   await db.transaction('rw', [db.exercises, db.workouts, db.workoutExercises, db.sets, db.weights, db.meta], async () => {
     await Promise.all([db.exercises.clear(), db.workouts.clear(), db.workoutExercises.clear(), db.sets.clear(), db.weights.clear()])
     await db.exercises.bulkAdd(exercises)
@@ -411,5 +426,7 @@ export async function importData(data: BackupFile) {
     await db.weights.bulkAdd(weights)
     if (goal) await db.meta.put({ key: WEIGHT_GOAL_KEY, value: goal })
     else await db.meta.delete(WEIGHT_GOAL_KEY)
+    if (targetRate != null) await db.meta.put({ key: TARGET_RATE_KEY, value: targetRate })
+    else await db.meta.delete(TARGET_RATE_KEY)
   })
 }

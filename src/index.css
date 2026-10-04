@@ -1352,25 +1352,228 @@ textarea.input {
 .weight-range {
   grid-template-columns: repeat(6, minmax(0, 1fr));
 }
-.goal-card {
-  width: 100%;
-  display: grid;
-  grid-template-columns: 1fr 1fr 1.3fr;
-  text-align: left;
-  color: var(--text);
-  padding: 14px 18px;
-  border-radius: 24px;
+/* Trends card: four tiles that roll up like an odometer */
+.trends-card h3,
+.proj-card h3 {
+  margin-bottom: 12px;
 }
-.goal-proj {
+.trend-tiles {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+.trend-tile {
+  height: 58px;
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  font-weight: 600;
+  background: var(--surface-2);
+  color: var(--muted);
+}
+.trend-tile.up {
+  background: var(--accent-tint);
+}
+.trend-tile.down {
+  background: var(--danger-tint);
+}
+.trend-lbl {
+  margin-top: 7px;
+  text-align: center;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  line-height: 1.35;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.odo {
+  display: inline-flex;
+}
+.odo-digit {
+  display: inline-block;
+  height: 1.2em;
+  line-height: 1.2em;
+  overflow: hidden;
+}
+.odo-strip {
+  display: block;
+  transition: transform 1s cubic-bezier(0.15, 0.85, 0.25, 1);
+}
+.odo-strip > span {
+  display: block;
+  height: 1.2em;
+}
+@media (prefers-reduced-motion: reduce) {
+  .odo-strip,
+  .rate-ind,
+  .goal-bar > div {
+    transition: none;
+  }
+}
+
+/* Projections card */
+.rate-pill {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  background: var(--bg);
+  border-radius: 18px;
+  padding: 4px;
+}
+.rate-ind {
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  left: 4px;
+  width: calc((100% - 8px) / 3);
+  border-radius: 14px;
+  background: var(--surface-3);
+  border: 1px solid #3a4250;
+  transition: transform 0.35s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.rate-pill button {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  border: 0;
+  background: transparent;
+  padding: 9px 2px 8px;
+  color: var(--muted);
+  transition: color 0.3s;
+}
+.rate-pill button.on {
+  color: var(--text);
+}
+.rate-lbl {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 700;
+}
+.rate-num {
+  font-size: 19px;
+  font-weight: 600;
+  line-height: 1.2;
+  color: var(--muted);
+}
+.rate-num.text {
+  color: var(--text);
+}
+.rate-num.muted {
+  color: var(--muted);
+}
+.rate-unit {
+  font-size: 10px;
+  font-weight: 600;
+}
+.proj-line {
+  font-size: 14px;
+  color: var(--muted);
+  margin: 14px 0 4px;
+  line-height: 1.45;
+}
+.proj-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 12px 0;
+  border-top: 1px solid var(--line);
+}
+.proj-row .right,
+.goal-top .right {
   text-align: right;
 }
-.goal-num {
+.proj-w {
   font-size: 19px;
-  font-weight: 700;
-  margin-top: 4px;
+  font-weight: 600;
 }
-.goal-empty {
+.proj-w .unit,
+.goal-w .unit {
+  font-size: 13px;
+  font-weight: 500;
+}
+.proj-date {
+  font-size: 16px;
+  font-weight: 700;
+}
+.goal-block {
+  width: 100%;
+  display: block;
+  text-align: left;
+  border: 0;
+  background: var(--bg);
+  border-radius: 18px;
+  padding: 14px;
+  margin-top: 4px;
+  color: var(--text);
+}
+.goal-set {
+  display: flex;
+  align-items: center;
+  gap: 10px;
   color: var(--accent);
+  font-weight: 700;
+}
+.goal-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+}
+.goal-kicker {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--muted);
+}
+.goal-kicker svg {
+  color: var(--accent);
+}
+.goal-w {
+  font-size: 30px;
+  font-weight: 600;
+  line-height: 1.15;
+}
+.goal-bar {
+  height: 8px;
+  border-radius: 4px;
+  background: var(--surface-2);
+  margin: 14px 0 8px;
+  overflow: hidden;
+}
+.goal-bar > div {
+  height: 100%;
+  border-radius: 4px;
+  background: var(--accent);
+  transition: width 0.6s ease-out;
+}
+.goal-foot {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+}
+.ms-toggle {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: var(--accent);
+  font-size: 13px;
+  font-weight: 700;
+  padding: 14px 0 2px;
+}
+.ms-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 9px 2px;
+  font-size: 14px;
+  border-top: 1px solid var(--line);
 }
 .date-row {
   position: relative;

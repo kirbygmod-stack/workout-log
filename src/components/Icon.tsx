@@ -27,6 +27,8 @@ const PATHS = {
   ),
   list: <path d="M9 6h11M9 12h11M9 18h11M4.5 6h.01M4.5 12h.01M4.5 18h.01" />,
   check: <path d="M5 12l5 5L20 7" />,
+  flag: <path d="M5 21V4M5 4h11l-2 4 2 4H5" />,
+  pencil: <path d="M4 20h4L19 9l-4-4L4 16v4ZM13.5 6.5l4 4" />,
   plus: <path d="M12 5v14M5 12h14" />,
   more: (
     <>
