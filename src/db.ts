@@ -202,6 +202,25 @@ export async function setMeta(key: string, value: unknown) {
   await db.meta.put({ key, value })
 }
 
+/**
+ * Rest timer Stop: freezes the rest that follows `setId` at time `at`. The next logged set saves
+ * that frozen rest instead of the time until logging, then the entry is cleared. Kept in meta
+ * (not exported in backups) so it survives the app being closed mid-workout.
+ */
+export interface RestStop {
+  setId: number
+  at: number
+}
+const REST_STOP_KEY = 'restStop'
+export const getRestStop = () => getMeta<RestStop>(REST_STOP_KEY)
+/** Stops the rest after the latest set in the workout, looked up at tap time (never a stale render). */
+export async function stopRest(workoutId: number) {
+  const at = Date.now()
+  const last = await lastSetInWorkout(workoutId)
+  if (last) await setMeta(REST_STOP_KEY, { setId: last.id!, at } satisfies RestStop)
+}
+export const clearRestStop = () => db.meta.delete(REST_STOP_KEY)
+
 /** Sets from the most recent *other* workout that included this exercise. */
 export async function lastSessionFor(exerciseId: number, excludeWorkoutId?: number) {
   const wes = await db.workoutExercises.where('exerciseId').equals(exerciseId).reverse().sortBy('id')

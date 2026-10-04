@@ -1,6 +1,6 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useState } from 'react'
-import { db, lastSessionFor, lastSetInWorkout, MAX_RECORDED_REST_SEC, removeWorkoutExercise, type Exercise, type SetEntry, type WorkoutExercise } from '../db'
+import { clearRestStop, db, getRestStop, lastSessionFor, lastSetInWorkout, MAX_RECORDED_REST_SEC, removeWorkoutExercise, type Exercise, type SetEntry, type WorkoutExercise } from '../db'
 import { fmtDuration, fmtNum, fmtSet } from '../format'
 import { bestE1rm, fmtSession, fmtTile, setDelta } from '../stats'
 import { SetForm, type SetValues } from './SetForm'
@@ -57,9 +57,13 @@ export function ExerciseCard({
     if (live) {
       const prev = await lastSetInWorkout(we.workoutId)
       if (prev) {
-        const r = Math.round((now - prev.completedAt) / 1000)
+        // A Stop on the rest timer freezes the rest at the moment it was tapped.
+        const stop = await getRestStop()
+        const end = stop && stop.setId === prev.id ? stop.at : now
+        const r = Math.round((end - prev.completedAt) / 1000)
         if (r <= MAX_RECORDED_REST_SEC) restSec = r
       }
+      await clearRestStop()
     }
     await db.sets.add({
       ...v,

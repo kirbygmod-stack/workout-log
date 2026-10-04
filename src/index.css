@@ -12,6 +12,7 @@
   --accent-tint: rgba(126, 224, 181, 0.13);
   --danger: #ff8f8f;
   --danger-tint: rgba(255, 143, 143, 0.13);
+  --stop: #d04848;
   --mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
   --tabbar-h: 64px;
   --tabbar-gap: max(12px, env(safe-area-inset-bottom));
@@ -636,8 +637,13 @@ textarea.input {
   flex: none;
 }
 .rest-ring {
-  stroke: var(--text);
-  transition: stroke-dashoffset 0.25s linear;
+  stroke: var(--accent);
+  stroke-opacity: 0.45;
+  transition: stroke-dashoffset 0.25s linear, stroke-opacity 0.3s;
+}
+.rest-elapsed {
+  color: var(--accent);
+  opacity: 0.75;
 }
 .rest-label {
   font-size: 12px;
@@ -657,16 +663,59 @@ textarea.input {
 .rest.done {
   border-color: var(--accent);
 }
-.rest.done .rest-ring,
-.rest.done .rest-label,
-.rest.done .rest-time {
-  stroke: var(--accent);
+.rest.done .rest-label {
   color: var(--accent);
 }
-.rest .btn {
+.rest.done .rest-ring {
+  stroke-opacity: 1;
+  filter: drop-shadow(0 0 3px rgba(126, 224, 181, 0.6));
+}
+.rest.done .rest-elapsed {
+  opacity: 1;
+  text-shadow: 0 0 10px rgba(126, 224, 181, 0.45);
+}
+.rest.stopped .rest-ring {
+  stroke: var(--muted);
+  stroke-opacity: 0.6;
+}
+.rest.stopped .rest-elapsed {
+  color: var(--muted);
+  opacity: 1;
+}
+.rest-actions {
+  display: flex;
+  gap: 6px;
+  flex: none;
+}
+.rest .btn,
+.rest-stop {
+  min-height: 44px;
+  height: 44px;
+  border-radius: 14px;
   background: var(--surface-2);
-  border-color: var(--surface-2);
-  padding: 0 14px;
+  border: 1px solid var(--surface-2);
+}
+.rest .btn {
+  padding: 0 16px;
+}
+.rest-stop {
+  appearance: none;
+  width: 44px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--stop);
+  border-color: var(--stop);
+}
+.rest-stop-icon {
+  width: 13px;
+  height: 13px;
+  border-radius: 3px;
+  background: var(--bg);
+}
+.rest-actions button:disabled {
+  opacity: 0.35;
 }
 
 .next-up {
