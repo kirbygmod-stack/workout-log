@@ -1249,21 +1249,41 @@ textarea.input {
   padding: 14px 16px 8px;
 }
 .weight-head {
-  align-items: flex-start;
+  display: grid;
+  grid-template-columns: auto auto auto;
+  justify-content: space-between;
+  align-items: baseline;
+  row-gap: 2px;
   margin-bottom: 8px;
 }
+.weight-head .center {
+  text-align: center;
+}
+.weight-head .right {
+  text-align: right;
+}
+.weight-lbl {
+  font-size: 13px;
+  line-height: 1.2;
+  white-space: nowrap;
+}
 .weight-big {
-  font-size: 34px;
+  font-size: 32px;
   font-weight: 700;
   line-height: 1.1;
+  white-space: nowrap;
 }
-.weight-chg {
-  text-align: right;
-  margin-top: 4px;
-}
-.weight-diff {
-  font-size: 17px;
+.weight-num {
+  font-size: 28px;
   font-weight: 700;
+  line-height: 1.1;
+  white-space: nowrap;
+}
+.weight-arrow {
+  display: inline-block;
+  margin-right: 4px;
+  font-size: 0.78em;
+  vertical-align: 0.1em;
 }
 .weight-chart {
   position: relative;
