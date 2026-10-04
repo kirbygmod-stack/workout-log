@@ -3,10 +3,11 @@ import { useState } from 'react'
 import { db, workoutTypeLabel } from '../db'
 import { fmtDate, fmtDuration } from '../format'
 import { WorkoutView } from '../components/WorkoutView'
+import { Icon } from '../components/Icon'
 
 const PAGE = 30
 
-export function History() {
+export function History({ onBack }: { onBack: () => void }) {
   const [openId, setOpenId] = useState<number | null>(null)
   const [limit, setLimit] = useState(PAGE)
 
@@ -28,6 +29,9 @@ export function History() {
 
   return (
     <div>
+      <button className="btn ghost back" onClick={onBack}>
+        <Icon name="back" size={18} /> Settings
+      </button>
       <h1>History</h1>
       {rows.total === 0 && <p className="muted">Finished workouts show up here.</p>}
       <ul className="history">
