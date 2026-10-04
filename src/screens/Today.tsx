@@ -58,7 +58,14 @@ export function Today({ goToSettings }: { goToSettings: () => void }) {
                   <span className="start-title">{t.label}</span>
                   <span className={`start-strength ${dir}`}>
                     <span className="start-pct">
-                      {pct == null ? '—' : `${dir === 'up' ? '▲' : dir === 'down' ? '▼' : ''}${Math.abs(pct).toFixed(1)}%`}
+                      {pct == null ? (
+                        '—'
+                      ) : (
+                        <>
+                          {dir && <span className="start-arrow">{dir === 'up' ? '▲' : '▼'}</span>}
+                          {Math.abs(pct).toFixed(1)}%
+                        </>
+                      )}
                     </span>
                     {pct != null && <span className="start-strength-label">vs last week</span>}
                   </span>
