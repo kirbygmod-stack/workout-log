@@ -5,7 +5,6 @@ import {
   fmtDiff,
   fmtPct,
   fmtSpan,
-  normName,
   rangeStart,
   scalePoints,
   sessionPoints,
@@ -15,18 +14,11 @@ import {
   weeklyStrengthChange,
   weeklyVolume,
 } from './progress'
+import { volume } from './stats'
 
 const DAY = 86400000
 // All dates are local (the test zone is America/New_York, see vitest.config.ts).
 const at = (y: number, m: number, d: number, h = 12) => new Date(y, m - 1, d, h).getTime()
-
-describe('normName', () => {
-  it('lowercases and strips everything but letters', () => {
-    expect(normName('Push-up')).toBe('pushup')
-    expect(normName('Back Squat')).toBe('backsquat')
-    expect(normName('  O.H.P. ')).toBe('ohp')
-  })
-})
 
 describe('weekStart (Monday 00:00 local)', () => {
   it('maps every day of a week to its Monday', () => {
@@ -144,6 +136,13 @@ describe('weekly volume', () => {
     expect(w.map((x) => x.start)).toEqual([at(2026, 10, 19, 0), at(2026, 10, 26, 0), at(2026, 11, 2, 0)])
     for (const x of w) expect(new Date(x.start).getDay()).toBe(1)
     for (const x of w) expect(new Date(x.start).getHours()).toBe(0)
+  })
+  it('weekly volume, volumeBetween and volume() agree on the same sets', () => {
+    const sets = [mk(1, at(2026, 10, 1), 100, 10), mk(1, at(2026, 10, 2), 50, 3), mk(2, at(2026, 10, 1), 25, 10), mk(1, at(2026, 10, 3), 0, 10)]
+    const week = weeklyVolume(sets, kindOf, now, 1)[0].volume
+    expect(week).toBe(1150)
+    expect(volumeBetween(sets, kindOf, at(2026, 9, 28, 0), at(2026, 10, 5, 0))).toBe(week)
+    expect(volume(sets, kindOf)).toBe(week)
   })
   it('volumeBetween is [from, to) and weighted lifts only', () => {
     const sets = [mk(1, 1000, 10, 10), mk(1, 2000, 10, 10), mk(2, 1500, 10, 10)]

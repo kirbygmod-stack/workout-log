@@ -1,7 +1,7 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { db, type Exercise, type SetEntry, type Workout } from '../db'
-import { fmtDate, fmtNum } from '../format'
+import { fmtDate, fmtNum, normName } from '../format'
 import { fmtLbs } from '../stats'
 import {
   BIG_FIVE,
@@ -11,7 +11,6 @@ import {
   fmtDiff,
   fmtPct,
   fmtSpan,
-  normName,
   rangeStart,
   scalePoints,
   sessionPoints,

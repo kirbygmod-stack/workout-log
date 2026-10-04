@@ -1,4 +1,5 @@
 import Dexie, { type EntityTable } from 'dexie'
+import { normName } from './format'
 
 export type Section = 'push' | 'pull' | 'legs' | 'abs' | 'bodyweight' | 'cardio'
 /** How sets for an exercise are logged. */
@@ -148,7 +149,7 @@ db.version(3).stores({
 /** Exercises that get the Assist option by default: pull-ups, dips, push-ups. */
 const ASSISTABLE_NAMES = new Set(['pullup', 'pullups', 'dip', 'dips', 'pushup', 'pushups'])
 export function isDefaultAssistable(e: Pick<Exercise, 'name' | 'kind'>) {
-  return e.kind === 'bodyweight' && ASSISTABLE_NAMES.has(e.name.toLowerCase().replace(/[^a-z]/g, ''))
+  return e.kind === 'bodyweight' && ASSISTABLE_NAMES.has(normName(e.name))
 }
 
 /** Max assist the input accepts, lbs. */
@@ -212,12 +213,11 @@ const LATER_STARTERS: { key: string; exercise: Omit<Exercise, 'id' | 'createdAt'
 ]
 
 export async function addLaterStarters() {
-  const norm = (n: string) => n.toLowerCase().replace(/[^a-z]/g, '')
   await db.transaction('rw', db.exercises, db.meta, async () => {
     for (const { key, exercise } of LATER_STARTERS) {
       if (await db.meta.get(key)) continue
-      const names = new Set((await db.exercises.toArray()).map((e) => norm(e.name)))
-      if (!names.has(norm(exercise.name))) await db.exercises.add({ ...exercise, createdAt: Date.now() })
+      const names = new Set((await db.exercises.toArray()).map((e) => normName(e.name)))
+      if (!names.has(normName(exercise.name))) await db.exercises.add({ ...exercise, createdAt: Date.now() })
       await db.meta.put({ key, value: Date.now() })
     }
   })
@@ -397,7 +397,13 @@ export async function exportData(): Promise<BackupFile> {
 }
 
 export async function importData(data: BackupFile) {
-  if (data?.app !== 'workout-log' || !Array.isArray(data.exercises) || !Array.isArray(data.sets)) {
+  if (
+    data?.app !== 'workout-log' ||
+    !Array.isArray(data.exercises) ||
+    !Array.isArray(data.workouts) ||
+    !Array.isArray(data.workoutExercises) ||
+    !Array.isArray(data.sets)
+  ) {
     throw new Error("That file isn't a Workout Log backup.")
   }
   const v = data.version

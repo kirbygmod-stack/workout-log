@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { durationInput, fmtDuration, fmtNum, fmtSet, parseDuration, parseNum } from './format'
+import { durationInput, fmtDuration, fmtNum, fmtSet, normName, parseDuration, parseNum } from './format'
 
 describe('fmtDuration', () => {
   it('formats m:ss and h:mm:ss', () => {
@@ -63,5 +63,14 @@ describe('fmtSet', () => {
     expect(fmtSet({ kind: 'cardio', levelLabel: 'Incline %' }, { durationSec: 1800, speed: 3.5, level: 2, calories: 250 } as never)).toBe(
       '30:00 · 3.5 mph · Incline 2% · 250 cal',
     )
+  })
+})
+
+describe('normName', () => {
+  it('lowercases and strips everything but letters', () => {
+    expect(normName('Push-up')).toBe('pushup')
+    expect(normName('Back Squat')).toBe('backsquat')
+    expect(normName('  O.H.P. ')).toBe('ohp')
+    expect(normName('')).toBe('')
   })
 })

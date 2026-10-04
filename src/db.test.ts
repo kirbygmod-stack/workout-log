@@ -70,6 +70,15 @@ describe('fresh install', () => {
   })
 })
 
+describe('normName in starters', () => {
+  it('library matching ignores case and punctuation', async () => {
+    await wipe()
+    await db.exercises.add(exercise(1, 'DEAD LIFT!') as never)
+    await addLaterStarters()
+    expect(await db.exercises.count()).toBe(1)
+  })
+})
+
 describe('isDefaultAssistable', () => {
   it('matches pull-ups, dips and push-ups regardless of case and punctuation, bodyweight only', () => {
     for (const name of ['Pull-up', 'pull ups', 'PULLUPS', 'Dips', 'Dip', 'Push-up', 'push ups']) {
@@ -274,6 +283,10 @@ describe('importData: rejecting files', () => {
     await rejects({ ...backup(), app: 'something-else' }, /isn't a Workout Log backup/)
     await rejects({ ...backup(), exercises: undefined }, /isn't a Workout Log backup/)
     await rejects({ ...backup(), sets: 'nope' }, /isn't a Workout Log backup/)
+    await rejects({ ...backup(), workouts: undefined }, /isn't a Workout Log backup/)
+    await rejects({ ...backup(), workouts: {} }, /isn't a Workout Log backup/)
+    await rejects({ ...backup(), workoutExercises: undefined }, /isn't a Workout Log backup/)
+    await rejects({ ...backup(), workoutExercises: 'nope' }, /isn't a Workout Log backup/)
   })
   it('missing, zero, fractional or non-numeric version', async () => {
     for (const version of [undefined, 0, -1, 1.5, '3', null, NaN]) {

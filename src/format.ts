@@ -1,5 +1,8 @@
 import type { Exercise, SetEntry } from './db'
 
+/** Name for matching: lowercase, letters only ("Push-up" → "pushup"). */
+export const normName = (n: string) => n.toLowerCase().replace(/[^a-z]/g, '')
+
 export function fmtDuration(sec: number | undefined) {
   if (sec == null || !isFinite(sec)) return '—'
   sec = Math.max(0, Math.round(sec))

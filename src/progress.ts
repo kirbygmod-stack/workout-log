@@ -1,6 +1,6 @@
 import type { Exercise, SetEntry, Workout, WorkoutType } from './db'
 import { fmtNum } from './format'
-import { e1rm } from './stats'
+import { e1rm, setVolume, volume } from './stats'
 
 /** The lifts the Progress list always shows, in order. Matched by name (case/punctuation-insensitive). */
 export const BIG_FIVE: { label: string; names: string[] }[] = [
@@ -10,8 +10,6 @@ export const BIG_FIVE: { label: string; names: string[] }[] = [
   { label: 'Barbell Row', names: ['barbellrow', 'bentoverrow', 'bentoverbarbellrow'] },
   { label: 'Overhead Press', names: ['overheadpress', 'ohp', 'militarypress', 'standingoverheadpress'] },
 ]
-
-export const normName = (n: string) => n.toLowerCase().replace(/[^a-z]/g, '')
 
 export type RangeId = '1M' | '2M' | '6M' | '1Y' | 'ALL'
 export const RANGES: RangeId[] = ['1M', '2M', '6M', '1Y', 'ALL']
@@ -114,10 +112,8 @@ export function weeklyVolume(
   }
   const totals = starts.map(() => 0)
   for (const s of sets) {
-    if (kindOf(s.exerciseId) !== 'weight' || !s.weight || !s.reps) continue
-    const ws = weekStart(s.completedAt)
-    const i = starts.indexOf(ws)
-    if (i >= 0) totals[i] += s.weight * s.reps
+    const i = starts.indexOf(weekStart(s.completedAt))
+    if (i >= 0) totals[i] += setVolume(s, kindOf)
   }
   return starts.map((start, i) => ({ start, volume: totals[i] }))
 }
@@ -129,12 +125,10 @@ export function volumeBetween(
   from: number,
   to: number,
 ) {
-  let v = 0
-  for (const s of sets) {
-    if (s.completedAt < from || s.completedAt >= to || kindOf(s.exerciseId) !== 'weight') continue
-    v += (s.weight ?? 0) * (s.reps ?? 0)
-  }
-  return v
+  return volume(
+    sets.filter((s) => s.completedAt >= from && s.completedAt < to),
+    kindOf,
+  )
 }
 
 // ---------- weekly strength change (Start screen) ----------
