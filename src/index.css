@@ -790,7 +790,7 @@ textarea.input {
 .start-strength {
   position: absolute;
   top: 12.5px;
-  right: 16px;
+  right: 18px;
   display: flex;
   flex-direction: column;
   align-items: flex-end;
