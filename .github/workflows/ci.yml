@@ -1,0 +1,25 @@
+name: CI
+
+# Lint, tests and a build on every branch and pull request, so problems show up before anything is merged.
+# (Merging to main runs the same checks again in the deploy workflow before it publishes.)
+on:
+  push:
+    branches-ignore: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build
