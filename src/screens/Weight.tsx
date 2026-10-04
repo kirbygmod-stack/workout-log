@@ -36,6 +36,7 @@ import {
   presetSpan,
   projection,
   trendPoints,
+  trendSlope,
   windowChange,
   xTicks,
   yScale,
@@ -119,6 +120,17 @@ function toneFor(diff: number | null, goal: WeightGoal | undefined, pts: TrendPo
   return (dir === 'down' ? diff < 0 : diff > 0) ? 'up' : 'down'
 }
 
+/** A signed lb amount with its own arrow span (4px gap), e.g. ▼2.8. */
+function Delta({ v, tone }: { v: number | null; tone: string }) {
+  if (v == null) return <div className="mono weight-num muted">—</div>
+  return (
+    <div className={`mono weight-num ${tone}`}>
+      {v !== 0 && <span className="weight-arrow">{v < 0 ? '▼' : '▲'}</span>}
+      {fmtLb(Math.abs(v))}
+    </div>
+  )
+}
+
 function WeightChart({ pts, today, goal }: { pts: TrendPoint[]; today: number; goal: WeightGoal | undefined }) {
   const [w, ref] = useWidth<HTMLDivElement>()
   const [view, setView] = useState(() => {
@@ -175,6 +187,9 @@ function WeightChart({ pts, today, goal }: { pts: TrendPoint[]; today: number; g
   const trendEnd = pts.length ? curveEnd(pts, v1) : null
   const diff = windowChange(pts, v0, v1)
   const tone = toneFor(diff, goal, pts)
+  const slope = trendSlope(pts, today)
+  const perWeek = slope == null ? null : slope * 7
+  const rateTone = toneFor(perWeek, goal, pts)
   const rangeText = preset ?? `${fmtDay(Math.floor(v0) + 1)} – ${v1 >= today - 0.01 ? 'today' : fmtDay(Math.floor(v1))}`
 
   // ----- gestures: pinch zooms, one finger pans, a tap selects a dot -----
@@ -261,21 +276,19 @@ function WeightChart({ pts, today, goal }: { pts: TrendPoint[]; today: number; g
   return (
     <>
       <section className="card weight-card">
-        <div className="row between weight-head">
-          <div>
-            <div className="muted small">Trend weight</div>
-            <div className="mono weight-big">
-              {trendEnd != null ? fmtLb(trendEnd) : '—'}
-              {trendEnd != null && <span className="muted unit"> lb</span>}
-            </div>
+        <div className="weight-head">
+          <div className="muted weight-lbl">Current weight</div>
+          <div className="muted weight-lbl center">{preset ? `${rangeText} · ${BUCKET_LABEL[kind]}` : rangeText}</div>
+          <div className="muted weight-lbl right">lb / week</div>
+          <div className="mono weight-big">
+            {trendEnd != null ? fmtLb(trendEnd) : '—'}
+            {trendEnd != null && <span className="muted unit"> lb</span>}
           </div>
-          <div className="weight-chg">
-            <div className={`mono weight-diff ${tone}`}>
-              {diff == null ? '—' : `${diff < 0 ? '▼' : diff > 0 ? '▲' : ''}${fmtLb(Math.abs(diff))} lb`}
-            </div>
-            <div className="muted tiny">
-              {rangeText} · {BUCKET_LABEL[kind]}
-            </div>
+          <div className="center">
+            <Delta v={diff} tone={tone} />
+          </div>
+          <div className="right">
+            <Delta v={perWeek} tone={rateTone} />
           </div>
         </div>
 
