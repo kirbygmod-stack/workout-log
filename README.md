@@ -1,4 +1,4 @@
-# Workout Log
+# Logbook
 
 Personal workout logger. Installable web app (PWA) that runs on iPhone from the Home Screen, works offline, and keeps all data on the device.
 

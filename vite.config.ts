@@ -11,8 +11,8 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.svg', 'apple-touch-icon.png'],
       manifest: {
-        name: 'Workout Log',
-        short_name: 'Workout',
+        name: 'Logbook',
+        short_name: 'Logbook',
         description: 'Personal workout logger',
         theme_color: '#0f1218',
         background_color: '#0f1218',
