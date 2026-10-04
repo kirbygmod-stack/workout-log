@@ -77,6 +77,23 @@ export interface SetEntry {
   calories?: number
 }
 
+/** One weigh-in per local day (schema v3). */
+export interface WeightEntry {
+  id?: number
+  /** Local day, YYYY-MM-DD. Unique. */
+  date: string
+  /** lbs, one decimal. */
+  weight: number
+  createdAt: number
+  updatedAt: number
+}
+
+/** Weight goal, kept in meta. `dir` is fixed when the goal is set so "Reached" can tell which side is past it. */
+export interface WeightGoal {
+  weight: number
+  dir?: 'down' | 'up'
+}
+
 export interface Meta {
   key: string
   value: unknown
@@ -88,6 +105,7 @@ export const db = new Dexie('workout-log') as Dexie & {
   workoutExercises: EntityTable<WorkoutExercise, 'id'>
   sets: EntityTable<SetEntry, 'id'>
   meta: EntityTable<Meta, 'key'>
+  weights: EntityTable<WeightEntry, 'id'>
 }
 
 db.version(1).stores({
@@ -116,6 +134,16 @@ db.version(2)
         if (isDefaultAssistable(e)) e.assistable = true
       }),
   )
+
+// v3: new `weights` store, one entry per day (unique date). Existing stores and records unchanged.
+db.version(3).stores({
+  exercises: '++id, section, name',
+  workouts: '++id, startedAt, type',
+  workoutExercises: '++id, workoutId, exerciseId',
+  sets: '++id, workoutExerciseId, workoutId, exerciseId',
+  meta: 'key',
+  weights: '++id, &date',
+})
 
 /** Exercises that get the Assist option by default: pull-ups, dips, push-ups. */
 const ASSISTABLE_NAMES = new Set(['pullup', 'pullups', 'dip', 'dips', 'pushup', 'pushups'])
@@ -221,6 +249,35 @@ export async function stopRest(workoutId: number) {
 }
 export const clearRestStop = () => db.meta.delete(REST_STOP_KEY)
 
+// ---------- Weight ----------
+
+export const MIN_WEIGHT_LB = 50
+export const MAX_WEIGHT_LB = 700
+const WEIGHT_GOAL_KEY = 'weightGoal'
+export const getWeightGoal = () => getMeta<WeightGoal>(WEIGHT_GOAL_KEY)
+export const clearWeightGoal = () => db.meta.delete(WEIGHT_GOAL_KEY)
+export async function setWeightGoal(goal: WeightGoal) {
+  await setMeta(WEIGHT_GOAL_KEY, goal)
+}
+
+/**
+ * Saves the weigh-in for `date`, replacing that day's entry if there is one.
+ * When editing an entry and its date changes, `fromDate` is removed in the same transaction.
+ */
+export async function saveWeight(date: string, weight: number, fromDate?: string) {
+  const now = Date.now()
+  await db.transaction('rw', db.weights, async () => {
+    if (fromDate && fromDate !== date) await db.weights.where('date').equals(fromDate).delete()
+    const existing = await db.weights.where('date').equals(date).first()
+    if (existing) await db.weights.update(existing.id!, { weight, updatedAt: now })
+    else await db.weights.add({ date, weight, createdAt: now, updatedAt: now })
+  })
+}
+
+export async function deleteWeight(date: string) {
+  await db.weights.where('date').equals(date).delete()
+}
+
 /** Sets from the most recent *other* workout that included this exercise. */
 export async function lastSessionFor(exerciseId: number, excludeWorkoutId?: number) {
   const wes = await db.workoutExercises.where('exerciseId').equals(exerciseId).reverse().sortBy('id')
@@ -295,8 +352,8 @@ export const MAX_RECORDED_REST_SEC = 20 * 60
 
 // ---------- Backup ----------
 
-/** Current backup format. v1: original. v2: adds exercises.assistable and sets.assist. */
-export const BACKUP_VERSION = 2
+/** Current backup format. v1: original. v2: adds exercises.assistable and sets.assist. v3: adds weights and weightGoal. */
+export const BACKUP_VERSION = 3
 
 export interface BackupFile {
   app: 'workout-log'
@@ -306,6 +363,10 @@ export interface BackupFile {
   workouts: Workout[]
   workoutExercises: WorkoutExercise[]
   sets: SetEntry[]
+  /** v3+ */
+  weights?: WeightEntry[]
+  /** v3+. null = no goal. */
+  weightGoal?: WeightGoal | null
 }
 
 export async function exportData(): Promise<BackupFile> {
@@ -317,6 +378,8 @@ export async function exportData(): Promise<BackupFile> {
     workouts: await db.workouts.toArray(),
     workoutExercises: await db.workoutExercises.toArray(),
     sets: await db.sets.toArray(),
+    weights: await db.weights.orderBy('date').toArray(),
+    weightGoal: (await getWeightGoal()) ?? null,
   }
 }
 
@@ -333,11 +396,20 @@ export async function importData(data: BackupFile) {
   }
   // v1 → v2: flag the default assistable exercises, same as the database upgrade.
   const exercises = v < 2 ? data.exercises.map((e) => (isDefaultAssistable(e) ? { ...e, assistable: true } : e)) : data.exercises
-  await db.transaction('rw', [db.exercises, db.workouts, db.workoutExercises, db.sets], async () => {
-    await Promise.all([db.exercises.clear(), db.workouts.clear(), db.workoutExercises.clear(), db.sets.clear()])
+  // v1/v2 files have no weights or goal; restoring one replaces those too (empty), like everything else.
+  const weights = v >= 3 && Array.isArray(data.weights) ? data.weights : []
+  if (!weights.every((w) => w && /^\d{4}-\d{2}-\d{2}$/.test(w.date) && typeof w.weight === 'number' && isFinite(w.weight))) {
+    throw new Error('That backup has a weigh-in it can’t read, so it can’t be restored safely.')
+  }
+  const goal = v >= 3 && data.weightGoal && typeof data.weightGoal.weight === 'number' ? data.weightGoal : null
+  await db.transaction('rw', [db.exercises, db.workouts, db.workoutExercises, db.sets, db.weights, db.meta], async () => {
+    await Promise.all([db.exercises.clear(), db.workouts.clear(), db.workoutExercises.clear(), db.sets.clear(), db.weights.clear()])
     await db.exercises.bulkAdd(exercises)
     await db.workouts.bulkAdd(data.workouts)
     await db.workoutExercises.bulkAdd(data.workoutExercises)
     await db.sets.bulkAdd(data.sets)
+    await db.weights.bulkAdd(weights)
+    if (goal) await db.meta.put({ key: WEIGHT_GOAL_KEY, value: goal })
+    else await db.meta.delete(WEIGHT_GOAL_KEY)
   })
 }

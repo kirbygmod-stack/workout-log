@@ -1,0 +1,319 @@
+import type { WeightEntry, WeightGoal } from './db'
+
+// Days are integers counted from 1970-01-01 in the local calendar (DST can't shift them).
+
+export function dayOf(date: string) {
+  const [y, m, d] = date.split('-').map(Number)
+  return Math.round(Date.UTC(y, m - 1, d) / 86400000)
+}
+export function dateOf(day: number) {
+  return new Date(Math.round(day) * 86400000).toISOString().slice(0, 10)
+}
+export function localToday(now = new Date()) {
+  const p = (n: number) => String(n).padStart(2, '0')
+  return `${now.getFullYear()}-${p(now.getMonth() + 1)}-${p(now.getDate())}`
+}
+/** Format a day with toLocaleDateString options (interpreted in UTC so the calendar day is exact). */
+export function fmtDay(day: number, opts: Intl.DateTimeFormatOptions = { month: 'short', day: 'numeric' }) {
+  return new Date(Math.round(day) * 86400000).toLocaleDateString(undefined, { ...opts, timeZone: 'UTC' })
+}
+export const fmtLb = (v: number) => (Math.round(v * 10) / 10).toFixed(1)
+
+export interface TrendPoint {
+  day: number
+  weight: number
+  trend: number
+}
+
+export const TREND_ALPHA = 0.1
+
+/** Gap-adjusted exponential moving average. Missing days are skipped, never filled in. Input any order. */
+export function trendPoints(entries: Pick<WeightEntry, 'date' | 'weight'>[]): TrendPoint[] {
+  const sorted = entries.map((e) => ({ day: dayOf(e.date), weight: e.weight })).sort((a, b) => a.day - b.day)
+  const out: TrendPoint[] = []
+  for (const e of sorted) {
+    const prev = out.at(-1)
+    const trend = prev ? prev.trend + (1 - Math.pow(1 - TREND_ALPHA, e.day - prev.day)) * (e.weight - prev.trend) : e.weight
+    out.push({ ...e, trend })
+  }
+  return out
+}
+
+/** Trend of the latest weigh-in on or before `day` (undefined if none). */
+export function trendOnOrBefore(pts: TrendPoint[], day: number) {
+  let v: number | undefined
+  for (const p of pts) {
+    if (p.day <= day) v = p.trend
+    else break
+  }
+  return v
+}
+
+/** Trend at the start and end of a view, for the window change. Start falls back to the first weigh-in. */
+export function windowChange(pts: TrendPoint[], v0: number, v1: number) {
+  const end = trendOnOrBefore(pts, v1)
+  const inView = pts.filter((p) => p.day > v0 && p.day <= v1)
+  if (end == null || pts.length < 2 || inView.length === 0) return null
+  const start = trendOnOrBefore(pts, v0) ?? pts[0].trend
+  return end - start
+}
+
+/** Least-squares slope of the trend, lb per day: last 14 days, or 30 if fewer than 3 weigh-ins in 14. */
+export function trendSlope(pts: TrendPoint[], today: number) {
+  for (const days of [14, 30]) {
+    const rec = pts.filter((p) => p.day > today - days && p.day <= today)
+    if (rec.length >= 3 || (days === 30 && rec.length >= 2)) {
+      const mx = rec.reduce((a, p) => a + p.day, 0) / rec.length
+      const my = rec.reduce((a, p) => a + p.trend, 0) / rec.length
+      const den = rec.reduce((a, p) => a + (p.day - mx) ** 2, 0)
+      if (den === 0) return null
+      return rec.reduce((a, p) => a + (p.day - mx) * (p.trend - my), 0) / den
+    }
+  }
+  return null
+}
+
+export const MIN_WEIGHINS_FOR_PROJECTION = 7
+
+export type Projection =
+  | { kind: 'date'; day: number }
+  | { kind: 'far' }
+  | { kind: 'reached' }
+  | { kind: 'away' }
+  | { kind: 'few' }
+  | { kind: 'none' }
+
+/** Goal direction: fixed when the goal was set, else inferred from the current trend. */
+export function goalDir(goal: WeightGoal, trend: number | undefined): 'down' | 'up' {
+  if (goal.dir) return goal.dir
+  return trend != null && goal.weight > trend ? 'up' : 'down'
+}
+
+export function projection(pts: TrendPoint[], goal: WeightGoal | undefined, today: number): Projection {
+  if (!goal) return { kind: 'none' }
+  const trend = pts.at(-1)?.trend
+  if (trend == null) return { kind: 'few' }
+  const dir = goalDir(goal, trend)
+  if (dir === 'down' ? trend <= goal.weight : trend >= goal.weight) return { kind: 'reached' }
+  if (pts.length < MIN_WEIGHINS_FOR_PROJECTION) return { kind: 'few' }
+  const slope = trendSlope(pts, today)
+  if (slope == null || slope === 0 || (dir === 'down' ? slope > 0 : slope < 0)) return { kind: 'away' }
+  const days = (goal.weight - trend) / slope
+  if (days > 730) return { kind: 'far' }
+  return { kind: 'date', day: today + Math.ceil(days) }
+}
+
+// ---------- view, buckets, axes ----------
+
+export type BucketKind = 'daily' | 'weekly' | 'biweekly' | 'monthly'
+export const BUCKET_LABEL: Record<BucketKind, string> = {
+  daily: 'daily',
+  weekly: 'weekly avg',
+  biweekly: '2-week avg',
+  monthly: 'monthly avg',
+}
+
+/** Averaging by visible span (days). */
+export function bucketKindFor(span: number): BucketKind {
+  if (span > 200) return 'monthly'
+  if (span > 100) return 'biweekly'
+  if (span > 40) return 'weekly'
+  return 'daily'
+}
+
+export type PresetId = '1W' | '1M' | '3M' | '6M' | '1Y' | 'ALL'
+export const PRESETS: PresetId[] = ['1W', '1M', '3M', '6M', '1Y', 'ALL']
+const PRESET_DAYS: Record<Exclude<PresetId, 'ALL'>, number> = { '1W': 7, '1M': 30, '3M': 91, '6M': 182, '1Y': 365 }
+export const MIN_SPAN = 7
+
+/** Days from the first weigh-in through today, at least the minimum span. */
+export function allSpan(pts: TrendPoint[], today: number) {
+  return pts.length ? Math.max(MIN_SPAN, today - pts[0].day + 1) : 365
+}
+export function presetSpan(id: PresetId, pts: TrendPoint[], today: number) {
+  return id === 'ALL' ? allSpan(pts, today) : PRESET_DAYS[id]
+}
+export function maxSpan(pts: TrendPoint[], today: number) {
+  return Math.max(365, allSpan(pts, today))
+}
+/** Which preset the view matches exactly (ending today), if any. */
+export function matchPreset(v0: number, span: number, pts: TrendPoint[], today: number): PresetId | null {
+  if (Math.abs(v0 + span - today) > 0.01) return null
+  // ALL first: with short histories it can equal a smaller preset's span, and its averaging differs.
+  for (const id of ['ALL', ...PRESETS.slice(0, 5)] as PresetId[]) if (Math.abs(presetSpan(id, pts, today) - span) < 0.01) return id
+  return null
+}
+
+const mod = (a: number, n: number) => ((a % n) + n) % n
+/** Monday of the week containing `day` (day 0, 1970-01-01, was a Thursday). */
+export const mondayOf = (day: number) => day - mod(day + 3, 7)
+
+/** Bucket key: the first day of the bucket. */
+export function bucketStart(day: number, kind: BucketKind) {
+  switch (kind) {
+    case 'daily':
+      return day
+    case 'weekly':
+      return mondayOf(day)
+    case 'biweekly': {
+      const m = mondayOf(day)
+      return m - mod((m + 3) / 7, 2) * 7
+    }
+    case 'monthly': {
+      const [y, mo] = dateOf(day).split('-').map(Number)
+      return dayOf(`${y}-${String(mo).padStart(2, '0')}-01`)
+    }
+  }
+}
+
+/** Last day of the bucket that starts at `start`. */
+export function bucketEnd(start: number, kind: BucketKind) {
+  if (kind === 'daily') return start
+  if (kind === 'weekly') return start + 6
+  if (kind === 'biweekly') return start + 13
+  const [y, mo] = dateOf(start).split('-').map(Number)
+  return dayOf(`${mo === 12 ? y + 1 : y}-${String(mo === 12 ? 1 : mo + 1).padStart(2, '0')}-01`) - 1
+}
+
+export interface Dot {
+  key: number
+  kind: BucketKind
+  /** Mean day of the weigh-ins in it (x position). */
+  day: number
+  /** Mean weight. */
+  weight: number
+  n: number
+}
+
+/** Averaged dots for weigh-ins inside the view (v0, v1]. */
+export function dots(pts: TrendPoint[], v0: number, v1: number, kind: BucketKind): Dot[] {
+  const m = new Map<number, TrendPoint[]>()
+  for (const p of pts) {
+    if (p.day <= v0 || p.day > v1) continue
+    const k = bucketStart(p.day, kind)
+    const list = m.get(k)
+    if (list) list.push(p)
+    else m.set(k, [p])
+  }
+  return [...m.entries()].map(([key, list]) => ({
+    key,
+    kind,
+    day: list.reduce((a, p) => a + p.day, 0) / list.length,
+    weight: list.reduce((a, p) => a + p.weight, 0) / list.length,
+    n: list.length,
+  }))
+}
+
+/** Popup label for a dot's day or range. */
+export function dotLabel(d: Dot, today: number) {
+  if (d.kind === 'daily') return d.key === today ? 'Today' : fmtDay(d.key, { weekday: 'short', month: 'short', day: 'numeric' })
+  if (d.kind === 'monthly') return fmtDay(d.key, { month: 'long', year: 'numeric' })
+  return `${fmtDay(d.key)} – ${fmtDay(bucketEnd(d.key, d.kind))}`
+}
+
+/** Nice y range: step of 1, 2, 5, 10, 20 or 50 lb with at most 5 bands. */
+export function yScale(values: number[]) {
+  const mn = Math.min(...values)
+  const mx = Math.max(...values)
+  for (const step of [1, 2, 5, 10, 20, 50]) {
+    const lo = Math.floor((mn - 0.3) / step) * step
+    // At least two bands, so a flat stretch doesn't fill the whole height.
+    const hi = Math.max(Math.ceil((mx + 0.3) / step) * step, lo + step * 2)
+    if ((hi - lo) / step <= 5) return { lo, hi, step }
+  }
+  const step = 100
+  return { lo: Math.floor(mn / step) * step, hi: Math.ceil(mx / step) * step + step, step }
+}
+
+export interface Tick {
+  day: number
+  label?: string
+  labelDay?: number
+}
+
+/** Vertical gridlines and their labels for the view. */
+export function xTicks(v0: number, v1: number): Tick[] {
+  const span = v1 - v0
+  const out: Tick[] = []
+  if (span >= 60) {
+    const [y0, m0] = dateOf(v0 - 31).split('-').map(Number)
+    let y = y0
+    let m = m0
+    for (;;) {
+      const start = dayOf(`${y}-${String(m).padStart(2, '0')}-01`)
+      if (start > v1) break
+      const mid = start + 14
+      const label =
+        mid > v0 + span * 0.04 && mid < v1 - span * 0.04 ? fmtDay(mid, { month: span > 200 ? 'narrow' : 'short' }) : undefined
+      out.push({ day: start, label, labelDay: mid })
+      m++
+      if (m > 12) {
+        m = 1
+        y++
+      }
+    }
+  } else {
+    const step = span <= 14 ? 2 : 7
+    // Weekly lines on Mondays; 2-day lines counted back from the right edge.
+    let d = step === 7 ? mondayOf(Math.ceil(v0)) : Math.floor(v1) - Math.floor((Math.floor(v1) - Math.ceil(v0)) / 2) * 2
+    if (d <= v0) d += step
+    for (; d <= v1; d += step) {
+      const label = d > v0 + span * 0.08 && d < v1 - span * 0.08 ? fmtDay(d) : undefined
+      out.push({ day: d, label, labelDay: d })
+    }
+  }
+  return out
+}
+
+// ---------- curve ----------
+
+/**
+ * Monotone cubic through (x, y) points (same method as the Progress chart): never overshoots a real value.
+ * Returns the tangents so the same curve can be drawn and evaluated at any x.
+ */
+export function monotone(pts: { x: number; y: number }[]) {
+  const n = pts.length
+  const dx: number[] = []
+  const slope: number[] = []
+  for (let i = 0; i < n - 1; i++) {
+    dx.push(pts[i + 1].x - pts[i].x)
+    slope.push(dx[i] === 0 ? 0 : (pts[i + 1].y - pts[i].y) / dx[i])
+  }
+  const tan: number[] = n > 1 ? [slope[0]] : [0]
+  for (let i = 1; i < n - 1; i++) {
+    if (slope[i - 1] * slope[i] <= 0) tan.push(0)
+    else {
+      const w1 = 2 * dx[i] + dx[i - 1]
+      const w2 = dx[i] + 2 * dx[i - 1]
+      tan.push((w1 + w2) / (w1 / slope[i - 1] + w2 / slope[i]))
+    }
+  }
+  if (n > 1) tan.push(slope[n - 2])
+
+  /** y on the curve at x (clamped to the ends). */
+  const at = (x: number) => {
+    if (n === 0) return NaN
+    if (x <= pts[0].x || n === 1) return pts[0].y
+    if (x >= pts[n - 1].x) return pts[n - 1].y
+    let i = 0
+    while (i < n - 2 && x > pts[i + 1].x) i++
+    const h = dx[i]
+    const t = (x - pts[i].x) / h
+    const t2 = t * t
+    const t3 = t2 * t
+    return (2 * t3 - 3 * t2 + 1) * pts[i].y + (t3 - 2 * t2 + t) * h * tan[i] + (-2 * t3 + 3 * t2) * pts[i + 1].y + (t3 - t2) * h * tan[i + 1]
+  }
+
+  /** SVG path after mapping each point through (sx, sy), which must be affine. */
+  const path = (sx: (x: number) => number, sy: (y: number) => number) => {
+    if (n === 0) return ''
+    const f = (v: number) => Math.round(v * 10) / 10
+    let d = `M${f(sx(pts[0].x))},${f(sy(pts[0].y))}`
+    for (let i = 0; i < n - 1; i++) {
+      const h = dx[i] / 3
+      d += ` C${f(sx(pts[i].x + h))},${f(sy(pts[i].y + tan[i] * h))} ${f(sx(pts[i + 1].x - h))},${f(sy(pts[i + 1].y - tan[i + 1] * h))} ${f(sx(pts[i + 1].x))},${f(sy(pts[i + 1].y))}`
+    }
+    return d
+  }
+  return { at, path }
+}
