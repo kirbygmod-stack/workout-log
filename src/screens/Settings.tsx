@@ -2,8 +2,11 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { useEffect, useRef, useState } from 'react'
 import { db, exportData, getMeta, importData, setMeta, type BackupFile } from '../db'
 import { daysAgo, fmtDate } from '../format'
+import { Icon } from '../components/Icon'
+import { History } from './History'
 
 export function Settings() {
+  const [showHistory, setShowHistory] = useState(false)
   const stats = useLiveQuery(async () => ({
     workouts: await db.workouts.count(),
     sets: await db.sets.count(),
@@ -56,6 +59,8 @@ export function Settings() {
     }
   }
 
+  if (showHistory) return <History onBack={() => setShowHistory(false)} />
+
   return (
     <div>
       <h1>Settings</h1>
@@ -96,6 +101,12 @@ export function Settings() {
           {persisted === null && 'Persistent storage status unavailable.'}
         </p>
       </section>
+
+      <button className="settings-link" onClick={() => setShowHistory(true)}>
+        <Icon name="history" size={20} />
+        <span className="grow">History</span>
+        <Icon name="chevron" size={18} />
+      </button>
 
       <p className="muted small center footnote">Workout Log v2 · all weights in lbs</p>
     </div>

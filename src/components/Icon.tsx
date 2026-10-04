@@ -1,5 +1,16 @@
 const PATHS = {
-  log: <path d="M6 7v10M18 7v10M3 10v4M21 10v4M6 12h12" />,
+  log: (
+    <>
+      <rect x="5" y="3" width="14" height="18" rx="2" />
+      <path d="M9 3v18M12.5 8h3M12.5 12h3" />
+    </>
+  ),
+  weight: (
+    <>
+      <rect x="3" y="3" width="18" height="18" rx="4.5" />
+      <path d="M6.4 11.6a5.6 5.6 0 0 1 11.2 0zM12 11.6l2.3-3.6" />
+    </>
+  ),
   history: (
     <>
       <rect x="3" y="4" width="18" height="17" rx="3" />
