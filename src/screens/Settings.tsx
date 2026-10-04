@@ -108,7 +108,7 @@ export function Settings() {
         <Icon name="chevron" size={18} />
       </button>
 
-      <p className="muted small center footnote">Workout Log v2 · all weights in lbs</p>
+      <p className="muted small center footnote">Logbook v2 · all weights in lbs</p>
     </div>
   )
 }
