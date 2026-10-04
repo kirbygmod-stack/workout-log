@@ -60,7 +60,7 @@ export function Today({ goToSettings }: { goToSettings: () => void }) {
                     <span className="start-pct">
                       {pct == null ? '—' : `${dir === 'up' ? '▲' : dir === 'down' ? '▼' : ''}${Math.abs(pct).toFixed(1)}%`}
                     </span>
-                    {pct != null && <span className="start-strength-label">WoW</span>}
+                    {pct != null && <span className="start-strength-label">vs last week</span>}
                   </span>
                 </span>
                 <span className="muted small">{prev ? `last ${daysAgo(prev.startedAt)}` : 'not logged yet'}</span>
