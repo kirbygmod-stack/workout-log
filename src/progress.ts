@@ -1,4 +1,4 @@
-import type { Exercise, SetEntry, Workout } from './db'
+import type { Exercise, SetEntry, Workout, WorkoutType } from './db'
 import { fmtNum } from './format'
 import { e1rm } from './stats'
 
@@ -135,6 +135,66 @@ export function volumeBetween(
     v += (s.weight ?? 0) * (s.reps ?? 0)
   }
   return v
+}
+
+// ---------- weekly strength change (Start screen) ----------
+
+/**
+ * Average % change in estimated 1-rep max per workout type.
+ * Anchor = the most recent Mon–Sun week with a workout of that type. Each weighted
+ * exercise trained in the anchor week is compared with its best e1RM in its most recent
+ * earlier week (same type). Exercises without a real e1RM in both weeks are left out,
+ * never counted as 0. Needs at least `minExercises` to show; otherwise null.
+ */
+export function weeklyStrengthChange(
+  sets: SetEntry[],
+  workouts: Workout[],
+  kindOf: (exerciseId: number) => Exercise['kind'] | undefined,
+  minExercises = 2,
+): Record<WorkoutType, number | null> {
+  const result: Record<WorkoutType, number | null> = { push: null, pull: null, legs: null, other: null }
+  const typeOf = new Map<number, WorkoutType>()
+  const weekOf = new Map<number, number>()
+  for (const w of workouts) {
+    if (w.id == null) continue
+    typeOf.set(w.id, w.type)
+    weekOf.set(w.id, weekStart(w.startedAt))
+  }
+  // type -> exercise -> week -> best e1RM
+  const best = new Map<WorkoutType, Map<number, Map<number, number>>>()
+  const typeWeeks = new Map<WorkoutType, Set<number>>()
+  for (const w of workouts) {
+    if (w.id == null) continue
+    if (!typeWeeks.has(w.type)) typeWeeks.set(w.type, new Set())
+    typeWeeks.get(w.type)!.add(weekOf.get(w.id)!)
+  }
+  for (const s of sets) {
+    const type = typeOf.get(s.workoutId)
+    const week = weekOf.get(s.workoutId)
+    if (type == null || week == null || kindOf(s.exerciseId) !== 'weight') continue
+    const v = e1rm(s.weight, s.reps)
+    if (v <= 0) continue
+    if (!best.has(type)) best.set(type, new Map())
+    const byEx = best.get(type)!
+    if (!byEx.has(s.exerciseId)) byEx.set(s.exerciseId, new Map())
+    const byWeek = byEx.get(s.exerciseId)!
+    if (v > (byWeek.get(week) ?? 0)) byWeek.set(week, v)
+  }
+  for (const [type, weeks] of typeWeeks) {
+    const anchor = Math.max(...weeks)
+    const changes: number[] = []
+    for (const byWeek of best.get(type)?.values() ?? []) {
+      const now = byWeek.get(anchor)
+      if (now == null) continue
+      let prevWeek = -Infinity
+      for (const wk of byWeek.keys()) if (wk < anchor && wk > prevWeek) prevWeek = wk
+      if (prevWeek === -Infinity) continue
+      const before = byWeek.get(prevWeek)!
+      changes.push(((now - before) / before) * 100)
+    }
+    if (changes.length >= minExercises) result[type] = changes.reduce((a, b) => a + b, 0) / changes.length
+  }
+  return result
 }
 
 // ---------- drawing ----------

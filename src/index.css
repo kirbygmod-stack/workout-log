@@ -786,6 +786,19 @@ textarea.input {
   font-weight: 800;
   letter-spacing: -0.01em;
 }
+.start-strength {
+  margin-top: 8px;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--muted);
+}
+.start-strength.up {
+  color: var(--accent);
+}
+.start-strength.down {
+  color: var(--danger);
+}
 .start-copy {
   min-height: 44px;
   background: var(--surface-2);
