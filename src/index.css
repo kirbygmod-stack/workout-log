@@ -28,9 +28,11 @@
 html,
 body {
   margin: 0;
+  height: 100%;
+  overflow: hidden;
   background: var(--bg);
   color: var(--text);
-  overscroll-behavior-y: none;
+  overscroll-behavior: none;
 }
 button,
 input,
@@ -59,8 +61,20 @@ h3 {
   margin: 0;
 }
 
+/* App shell: a fixed full-screen frame. The page never scrolls; content scrolls
+   inside .scroller, and the tab bar is pinned to the frame (not the page). */
 .app {
-  min-height: 100dvh;
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+}
+.scroller {
+  position: absolute;
+  inset: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior-y: none;
+  -webkit-overflow-scrolling: touch;
 }
 .main {
   max-width: 640px;
@@ -887,7 +901,7 @@ textarea.input {
 
 /* ---------- tab bar ---------- */
 .tabbar {
-  position: fixed;
+  position: absolute;
   left: 50%;
   transform: translateX(-50%);
   width: min(calc(100% - 40px), 420px);

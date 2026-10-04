@@ -5,6 +5,7 @@ import { Progress } from './screens/Progress'
 import { Exercises } from './screens/Exercises'
 import { Settings } from './screens/Settings'
 import { Icon, type IconName } from './components/Icon'
+import { scrollToTop } from './scroller'
 
 type Tab = 'today' | 'progress' | 'history' | 'exercises' | 'settings'
 
@@ -23,13 +24,15 @@ export default function App() {
 
   return (
     <div className="app">
-      <main className="main" key={`${tab}-${nonce}`}>
-        {tab === 'today' && <Today goToSettings={() => setTab('settings')} />}
-        {tab === 'progress' && <Progress />}
-        {tab === 'history' && <History />}
-        {tab === 'exercises' && <Exercises />}
-        {tab === 'settings' && <Settings />}
-      </main>
+      <div className="scroller">
+        <main className="main" key={`${tab}-${nonce}`}>
+          {tab === 'today' && <Today goToSettings={() => setTab('settings')} />}
+          {tab === 'progress' && <Progress />}
+          {tab === 'history' && <History />}
+          {tab === 'exercises' && <Exercises />}
+          {tab === 'settings' && <Settings />}
+        </main>
+      </div>
       <nav className="tabbar" aria-label="Main">
         {TABS.map((t) => (
           <button
@@ -40,7 +43,7 @@ export default function App() {
             onClick={() => {
               if (tab === t.id) setNonce(nonce + 1)
               else setTab(t.id)
-              window.scrollTo(0, 0)
+              scrollToTop()
             }}
           >
             <Icon name={t.icon} />
