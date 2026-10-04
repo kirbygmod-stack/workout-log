@@ -29,6 +29,9 @@ import {
   localToday,
   matchPreset,
   maxSpan,
+  minV0,
+  lineStep,
+  linePoints,
   monotone,
   presetSpan,
   projection,
@@ -118,7 +121,11 @@ function toneFor(diff: number | null, goal: WeightGoal | undefined, pts: TrendPo
 
 function WeightChart({ pts, today, goal }: { pts: TrendPoint[]; today: number; goal: WeightGoal | undefined }) {
   const [w, ref] = useWidth<HTMLDivElement>()
-  const [view, setView] = useState({ v0: today - 30, span: 30 })
+  const [view, setView] = useState(() => {
+    const s = presetSpan('1M', pts, today)
+    return { v0: today - s, span: s }
+  })
+  const [chosen, setChosen] = useState<PresetId | null>('1M')
   const [sel, setSel] = useState<{ key: number; kind: string } | null>(null)
   const gesture = useRef<{
     ptrs: Map<number, { x: number; y: number }>
@@ -130,11 +137,11 @@ function WeightChart({ pts, today, goal }: { pts: TrendPoint[]; today: number; g
   const maxS = maxSpan(pts, today)
   const clamp = (v0: number, span: number) => {
     const s = Math.min(Math.max(span, MIN_SPAN), maxS)
-    return { span: s, v0: Math.min(Math.max(v0, today - maxS), today - s) }
+    return { span: s, v0: Math.min(Math.max(v0, minV0(pts, today)), today - s) }
   }
   const { v0, span } = clamp(view.v0, view.span)
   const v1 = v0 + span
-  const preset = matchPreset(v0, span, pts, today)
+  const preset = matchPreset(v0, span, pts, today, chosen)
   // ALL is always monthly; everything else averages by visible span.
   const kind = preset === 'ALL' ? 'monthly' : bucketKindFor(span)
 
@@ -143,25 +150,23 @@ function WeightChart({ pts, today, goal }: { pts: TrendPoint[]; today: number; g
   const X = (day: number) => plotL + ((day - v0) / span) * (plotR - plotL)
   const dayAtX = (x: number) => v0 + ((x - plotL) / (plotR - plotL)) * span
 
-  const curve = useMemo(() => monotone(pts.map((p) => ({ x: p.day, y: p.trend }))), [pts])
+  // The line is drawn through fewer trend points as the view widens; stems and the popup read the same curve.
+  const step = lineStep(span)
+  const lpts = useMemo(() => linePoints(pts, step), [pts, step])
+  const curve = useMemo(() => monotone(lpts), [lpts])
   const shownDots = useMemo(() => makeDots(pts, v0, v1, kind), [pts, v0, v1, kind])
 
   // Y range: visible dots plus the visible stretch of the trend.
   const inView = pts.filter((p) => p.day > v0 && p.day <= v1)
-  const yVals = [...shownDots.map((d) => d.weight), ...inView.map((p) => p.trend)]
+  const yVals = [...shownDots.map((d) => d.weight), ...lpts.filter((p) => p.x > v0 && p.x <= v1).map((p) => p.y)]
   if (pts.length && inView.length) {
     yVals.push(curve.at(Math.max(v0, pts[0].day)), curve.at(Math.min(v1, pts.at(-1)!.day)))
   }
   const ys = yVals.length ? yScale(yVals) : null
   const Y = (v: number) => (ys ? TOP + PLOT_H - ((v - ys.lo) / (ys.hi - ys.lo)) * PLOT_H : 0)
 
-  // Trend path: only the stretch near the view (one point either side), clipped to the plot.
-  let first = pts.findIndex((p) => p.day > v0)
-  if (first === -1) first = pts.length
-  let last = pts.length - 1
-  while (last >= 0 && pts[last].day > v1) last--
-  const seg = pts.slice(Math.max(0, first - 1), Math.min(pts.length, last + 2))
-  const path = ys && seg.length >= 2 ? monotone(seg.map((p) => ({ x: p.day, y: p.trend }))).path(X, Y) : ''
+  // Trend path, clipped to the plot.
+  const path = ys && lpts.length >= 2 ? curve.path(X, Y) : ''
 
   const r = kind === 'daily' ? (span > 14 ? 3.2 : 4) : kind === 'weekly' ? 3.8 : 4.4
   const dotPos = shownDots.map((d) => ({ d, cx: X(d.day), cy: Y(d.weight), ty: Y(curve.at(d.day)) }))
@@ -246,6 +251,7 @@ function WeightChart({ pts, today, goal }: { pts: TrendPoint[]; today: number; g
   const pickPreset = (id: PresetId) => {
     const s = presetSpan(id, pts, today)
     setView({ v0: today - s, span: s })
+    setChosen(id)
     setSel(null)
   }
 

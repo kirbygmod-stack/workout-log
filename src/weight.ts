@@ -25,17 +25,101 @@ export interface TrendPoint {
   trend: number
 }
 
-export const TREND_ALPHA = 0.1
+export const TREND_ALPHA = 0.07
 
-/** Gap-adjusted exponential moving average. Missing days are skipped, never filled in. Input any order. */
+/** One moving-average pass over a daily series, forward or backward. */
+function ema(xs: number[], a: number, backward = false) {
+  const out = new Array<number>(xs.length)
+  const n = xs.length
+  let e = 0
+  for (let k = 0; k < n; k++) {
+    const i = backward ? n - 1 - k : k
+    e = k === 0 ? xs[i] : e + a * (xs[i] - e)
+    out[i] = e
+  }
+  return out
+}
+/** Days the series is extended past each end before smoothing (about 3 time constants at 7%). */
+const PAD = 42
+/** Days at each end used for the straight-line fit that extends it. */
+const FIT = 14
+
+/** Least-squares line through ys (x = 0..n-1), extended to `len` values after the last point. */
+function extendLine(ys: number[], len: number) {
+  const n = ys.length
+  if (n < 2) return new Array<number>(len).fill(ys[0])
+  const mx = (n - 1) / 2
+  const my = ys.reduce((a, v) => a + v, 0) / n
+  let num = 0
+  let den = 0
+  ys.forEach((v, i) => {
+    num += (i - mx) * (v - my)
+    den += (i - mx) ** 2
+  })
+  const b = num / den
+  return Array.from({ length: len }, (_, j) => my + b * (n + j - mx))
+}
+
+/**
+ * Forward and backward passes averaged day by day: smooth, with no lag. Each end is first extended
+ * with a straight line fit to its last two weeks, so the ends neither flatten out nor snap to the
+ * latest weigh-in; the extension is trimmed off afterwards.
+ */
+function twoWay(xs: number[], a: number) {
+  const n = xs.length
+  const m = Math.min(FIT, n)
+  const tail = extendLine(xs.slice(n - m), PAD)
+  const head = extendLine(xs.slice(0, m).reverse(), PAD).reverse()
+  const ext = [...head, ...xs, ...tail]
+  const f = ema(ext, a)
+  const b = ema(ext, a, true)
+  return xs.map((_, i) => (f[i + PAD] + b[i + PAD]) / 2)
+}
+
+/**
+ * Daily trend from the first weigh-in to the last. Gaps are filled with a straight line between
+ * neighbouring weigh-ins (for the calculation only), then the two-way pass runs twice (ends extended along a two-week line fit).
+ * `values[i]` is the trend on day `start + i`. Input sorted by day, one entry per day.
+ */
+export function trendSeries(sorted: { day: number; weight: number }[]) {
+  if (sorted.length === 0) return { start: 0, values: [] as number[] }
+  const start = sorted[0].day
+  const filled: number[] = []
+  for (let i = 0; i < sorted.length; i++) {
+    const a = sorted[i]
+    const b = sorted[i + 1]
+    if (!b) filled.push(a.weight)
+    else for (let d = a.day; d < b.day; d++) filled.push(a.weight + ((b.weight - a.weight) * (d - a.day)) / (b.day - a.day))
+  }
+  return { start, values: twoWay(twoWay(filled, TREND_ALPHA), TREND_ALPHA) }
+}
+
+/** Two-way smoothed trend at each weigh-in. Input any order. */
 export function trendPoints(entries: Pick<WeightEntry, 'date' | 'weight'>[]): TrendPoint[] {
   const sorted = entries.map((e) => ({ day: dayOf(e.date), weight: e.weight })).sort((a, b) => a.day - b.day)
-  const out: TrendPoint[] = []
-  for (const e of sorted) {
-    const prev = out.at(-1)
-    const trend = prev ? prev.trend + (1 - Math.pow(1 - TREND_ALPHA, e.day - prev.day)) * (e.weight - prev.trend) : e.weight
-    out.push({ ...e, trend })
-  }
+  const { start, values } = trendSeries(sorted)
+  return sorted.map((e) => ({ ...e, trend: values[e.day - start] }))
+}
+
+/** Days between drawn line points, by visible span (the line gets less detail as you zoom out). */
+export function lineStep(span: number) {
+  if (span <= 40) return 1
+  if (span <= 100) return 3
+  if (span <= 200) return 7
+  return 14
+}
+
+/**
+ * Points the trend line is drawn through: every `step` days counted from the first weigh-in
+ * (so the line doesn't shift while panning), plus the first and last weigh-in.
+ */
+export function linePoints(pts: TrendPoint[], step: number) {
+  if (pts.length === 0) return []
+  const { start, values } = trendSeries(pts)
+  const out: { x: number; y: number }[] = []
+  for (let i = 0; i < values.length; i += step) out.push({ x: start + i, y: values[i] })
+  const last = values.length - 1
+  if (out.at(-1)!.x !== start + last) out.push({ x: start + last, y: values[last] })
   return out
 }
 
@@ -130,15 +214,26 @@ export const MIN_SPAN = 7
 export function allSpan(pts: TrendPoint[], today: number) {
   return pts.length ? Math.max(MIN_SPAN, today - pts[0].day + 1) : 365
 }
+/** A preset's span, shrunk to the data when the range reaches back before the first weigh-in. */
 export function presetSpan(id: PresetId, pts: TrendPoint[], today: number) {
-  return id === 'ALL' ? allSpan(pts, today) : PRESET_DAYS[id]
+  if (id === 'ALL') return allSpan(pts, today)
+  return pts.length ? Math.min(PRESET_DAYS[id], allSpan(pts, today)) : PRESET_DAYS[id]
 }
+/** Zoom-out limit: all data (365 days before any weigh-ins exist). */
 export function maxSpan(pts: TrendPoint[], today: number) {
-  return Math.max(365, allSpan(pts, today))
+  return allSpan(pts, today)
 }
-/** Which preset the view matches exactly (ending today), if any. */
-export function matchPreset(v0: number, span: number, pts: TrendPoint[], today: number): PresetId | null {
+/** Earliest allowed view start: just before the first weigh-in (dots cover days after v0). */
+export function minV0(pts: TrendPoint[], today: number) {
+  return pts.length ? pts[0].day - 1 : today - 365
+}
+/**
+ * Which preset the view matches exactly (ending today), if any. Clamped presets can share a span,
+ * so the one last tapped (`chosen`) wins when it matches.
+ */
+export function matchPreset(v0: number, span: number, pts: TrendPoint[], today: number, chosen?: PresetId | null): PresetId | null {
   if (Math.abs(v0 + span - today) > 0.01) return null
+  if (chosen && Math.abs(presetSpan(chosen, pts, today) - span) < 0.01) return chosen
   // ALL first: with short histories it can equal a smaller preset's span, and its averaging differs.
   for (const id of ['ALL', ...PRESETS.slice(0, 5)] as PresetId[]) if (Math.abs(presetSpan(id, pts, today) - span) < 0.01) return id
   return null
