@@ -415,20 +415,20 @@ export function monotone(pts: { x: number; y: number }[]) {
 
 // ---------- trends and projections ----------
 
-/** Trend now minus trend `days` ago (latest weigh-in on or before that day; falls back to the first weigh-in). */
+/** Trend now minus trend `days` ago (latest weigh-in on or before that day). All time, and a window longer than the data, start from the raw first weigh-in. */
 export function trendChange(pts: TrendPoint[], today: number, days: number | 'all') {
   if (pts.length < 2) return null
   const now = pts.at(-1)!.trend
-  const start = days === 'all' ? pts[0].trend : (trendOnOrBefore(pts, today - days) ?? pts[0].trend)
+  const start = days === 'all' ? pts[0].weight : (trendOnOrBefore(pts, today - days) ?? pts[0].weight)
   return now - start
 }
 
-/** Overall rate, lb per day: trend change from the first to the latest weigh-in over the days between. */
+/** Overall rate, lb per day: from the raw first weigh-in to the current trend, over the days between. */
 export function overallSlope(pts: TrendPoint[]) {
   if (pts.length < 2) return null
   const span = pts.at(-1)!.day - pts[0].day
   if (span < MIN_SPAN) return null
-  return (pts.at(-1)!.trend - pts[0].trend) / span
+  return (pts.at(-1)!.trend - pts[0].weight) / span
 }
 
 export type RateId = 'current' | 'overall' | 'target'
@@ -474,10 +474,10 @@ export function milestones(trend: number, goal: number, dir: 'down' | 'up') {
   return out
 }
 
-/** Progress from the trend at the first weigh-in to the goal: amount done (toward the goal, never below 0) and percent (0–100). */
+/** Progress from the raw first weigh-in to the goal: amount done (toward the goal, never below 0) and percent (0–100). */
 export function goalProgress(pts: TrendPoint[], goal: number, dir: 'down' | 'up') {
   if (pts.length === 0) return null
-  const start = pts[0].trend
+  const start = pts[0].weight
   const now = pts.at(-1)!.trend
   const sign = dir === 'down' ? -1 : 1
   const total = sign * (goal - start)
