@@ -63,7 +63,7 @@ export function Today({ goToSettings }: { goToSettings: () => void }) {
                       ) : (
                         <>
                           {dir && <span className="start-arrow">{dir === 'up' ? '▲' : '▼'}</span>}
-                          {Math.abs(pct).toFixed(1)}%
+                          {fmtStrength(pct)}
                         </>
                       )}
                     </span>
@@ -84,6 +84,12 @@ export function Today({ goToSettings }: { goToSettings: () => void }) {
       </div>
     </div>
   )
+}
+
+/** One decimal under 10%; whole number once it rounds to 10.0% or more (keeps wide tiles like Other clear). */
+function fmtStrength(pct: number) {
+  const r = Math.round(Math.abs(pct) * 10) / 10
+  return r >= 10 ? `${Math.round(Math.abs(pct))}%` : `${r.toFixed(1)}%`
 }
 
 function nextInRotation(t: WorkoutType): WorkoutType | undefined {
