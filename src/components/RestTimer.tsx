@@ -1,6 +1,6 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useEffect, useRef, useState } from 'react'
-import { db, getRestStop, lastSetInWorkout, MAX_RECORDED_REST_SEC, stopRest } from '../db'
+import { clearRestStop, db, getRestStop, lastSetInWorkout, MAX_RECORDED_REST_SEC, stopRest } from '../db'
 import { fmtDuration } from '../format'
 import { beep, unlockAudio } from '../audio'
 
@@ -76,17 +76,32 @@ export function RestTimer({ workoutId }: { workoutId: number }) {
         </div>
       </div>
       <div className="rest-actions">
-        <button
-          className="rest-stop"
-          aria-label="Stop rest timer"
-          disabled={stopped}
-          onClick={() => {
-            unlockAudio()
-            stopRest(workoutId)
-          }}
-        >
-          <span className="rest-stop-icon" />
-        </button>
+        {stopped ? (
+          // Resume undoes the stop: the clock picks up from real elapsed time.
+          <button
+            className="rest-stop resume"
+            aria-label="Resume rest timer"
+            onClick={() => {
+              unlockAudio()
+              clearRestStop()
+            }}
+          >
+            <svg width="19" height="19" viewBox="0 0 16 16" aria-hidden="true">
+              <path d="M4.6 2.4Q4 2.05 4 2.75v10.5q0 .7.6.35l8.7-5.1q.6-.5 0-1Z" fill="var(--bg)" />
+            </svg>
+          </button>
+        ) : (
+          <button
+            className="rest-stop"
+            aria-label="Stop rest timer"
+            onClick={() => {
+              unlockAudio()
+              stopRest(workoutId)
+            }}
+          >
+            <span className="rest-stop-icon" />
+          </button>
+        )}
         <button
           className="btn quiet mono rest-plus"
           disabled={stopped}

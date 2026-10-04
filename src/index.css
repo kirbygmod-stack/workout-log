@@ -12,7 +12,6 @@
   --accent-tint: rgba(126, 224, 181, 0.13);
   --danger: #ff8f8f;
   --danger-tint: rgba(255, 143, 143, 0.13);
-  --stop: #d04848;
   --mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
   --tabbar-h: 64px;
   --tabbar-gap: max(12px, env(safe-area-inset-bottom));
@@ -705,13 +704,17 @@ textarea.input {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--stop);
-  border-color: var(--stop);
+  background: var(--danger);
+  border-color: var(--danger);
+}
+.rest-stop.resume {
+  background: var(--accent);
+  border-color: var(--accent);
 }
 .rest-stop-icon {
-  width: 13px;
-  height: 13px;
-  border-radius: 3px;
+  width: 12px;
+  height: 12px;
+  border-radius: 2.5px;
   background: var(--bg);
 }
 .rest-actions button:disabled {
