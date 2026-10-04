@@ -786,17 +786,34 @@ textarea.input {
   font-weight: 800;
   letter-spacing: -0.01em;
 }
+.start-head {
+  align-self: stretch;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
 .start-strength {
-  margin-top: 8px;
-  font-family: 'IBM Plex Mono', monospace;
-  font-size: 20px;
-  font-weight: 600;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
   color: var(--muted);
 }
-.start-strength.up {
+.start-pct {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 17px;
+  font-weight: 600;
+  line-height: 1.5;
+}
+.start-strength-label {
+  font-size: 10px;
+  color: var(--muted);
+  opacity: 0.8;
+}
+.start-strength.up .start-pct {
   color: var(--accent);
 }
-.start-strength.down {
+.start-strength.down .start-pct {
   color: var(--danger);
 }
 .start-copy {

@@ -3,7 +3,7 @@ import { useState } from 'react'
 import { db, getMeta, startWorkout, WORKOUT_TYPES, workoutTypeLabel, type Workout, type WorkoutType } from '../db'
 import { daysAgo, fmtDate } from '../format'
 import { WorkoutView } from '../components/WorkoutView'
-import { fmtPct, weeklyStrengthChange } from '../progress'
+import { weeklyStrengthChange } from '../progress'
 
 export const BACKUP_REMINDER_DAYS = 7
 
@@ -49,14 +49,21 @@ export function Today({ goToSettings }: { goToSettings: () => void }) {
         {WORKOUT_TYPES.map((t) => {
           const prev = lastByType[t.id]
           const pct = strength[t.id]
-          const pctClass = pct == null || Math.round(pct * 10) === 0 ? '' : pct > 0 ? 'up' : 'down'
+          // Direction comes from the raw change, so any decrease is red even if it rounds to 0.0%.
+          const dir = pct == null || pct === 0 ? '' : pct > 0 ? 'up' : 'down'
           return (
             <div key={t.id} className={`start-card ${suggested === t.id ? 'suggested' : ''}`}>
               <button className="start-main" onClick={() => startWorkout(t.id)}>
-                <span className="start-title">{t.label}</span>
+                <span className="start-head">
+                  <span className="start-title">{t.label}</span>
+                  <span className={`start-strength ${dir}`}>
+                    <span className="start-pct">
+                      {pct == null ? '—' : `${dir === 'up' ? '▲' : dir === 'down' ? '▼' : ''}${Math.abs(pct).toFixed(1)}%`}
+                    </span>
+                    {pct != null && <span className="start-strength-label">vs last week</span>}
+                  </span>
+                </span>
                 <span className="muted small">{prev ? `last ${daysAgo(prev.startedAt)}` : 'not logged yet'}</span>
-                <span className={`start-strength ${pctClass}`}>{pct == null ? '—' : fmtPct(pct)}</span>
-                <span className="muted small">vs last week</span>
                 {suggested === t.id && <span className="badge">Up next</span>}
               </button>
               {prev && (
