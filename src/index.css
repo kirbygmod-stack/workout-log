@@ -25,6 +25,18 @@
 * {
   box-sizing: border-box;
 }
+/* No text selection or iOS long-press callout outside fields */
+body {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+input,
+textarea {
+  -webkit-user-select: text;
+  user-select: text;
+  -webkit-touch-callout: default;
+}
 html,
 body {
   margin: 0;
