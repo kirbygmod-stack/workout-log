@@ -58,7 +58,14 @@ export function Today({ goToSettings }: { goToSettings: () => void }) {
                   <span className="start-title">{t.label}</span>
                   <span className={`start-strength ${dir}`}>
                     <span className="start-pct">
-                      {pct == null ? '—' : `${dir === 'up' ? '▲' : dir === 'down' ? '▼' : ''}${Math.abs(pct).toFixed(1)}%`}
+                      {pct == null ? (
+                        '—'
+                      ) : (
+                        <>
+                          {dir && <span className="start-arrow">{dir === 'up' ? '▲' : '▼'}</span>}
+                          {fmtStrength(pct)}
+                        </>
+                      )}
                     </span>
                     {pct != null && <span className="start-strength-label">vs last week</span>}
                   </span>
@@ -77,6 +84,12 @@ export function Today({ goToSettings }: { goToSettings: () => void }) {
       </div>
     </div>
   )
+}
+
+/** One decimal under 10%; whole number once it rounds to 10.0% or more (keeps wide tiles like Other clear). */
+function fmtStrength(pct: number) {
+  const r = Math.round(Math.abs(pct) * 10) / 10
+  return r >= 10 ? `${Math.round(Math.abs(pct))}%` : `${r.toFixed(1)}%`
 }
 
 function nextInRotation(t: WorkoutType): WorkoutType | undefined {
