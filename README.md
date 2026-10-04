@@ -17,6 +17,8 @@ Personal workout logger. Installable web app (PWA) that runs on iPhone from the 
 npm install
 npm run dev      # local dev server
 npm run build    # production build → dist/
+npm run lint     # oxlint
+npm test         # unit tests (Vitest); npm run test:watch to re-run on save
 ```
 Pushing to `main` deploys to GitHub Pages via `.github/workflows/deploy.yml`.
 
