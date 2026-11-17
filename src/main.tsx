@@ -12,7 +12,7 @@ import '@fontsource/ibm-plex-mono/latin-700.css'
 import './index.css'
 import App from './App.tsx'
 import { addLaterStarters } from './db'
-import { installKeyboardReset } from './scroller'
+import { installKeyboardReset } from './keyboard'
 
 // Ask the browser not to evict our data under storage pressure.
 navigator.storage?.persist?.().catch(() => {})

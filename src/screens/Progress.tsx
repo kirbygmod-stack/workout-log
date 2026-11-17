@@ -3,7 +3,6 @@ import { useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { db, type Exercise, type SetEntry, type Workout } from '../db'
 import { fmtDate, fmtNum, normName } from '../format'
 import { fmtLbs } from '../stats'
-import { scrollToTop } from '../scroller'
 import {
   BIG_FIVE,
   RANGES,
@@ -72,7 +71,7 @@ export function Progress() {
 
   const pick = (key: string) => {
     setSelected(key)
-    scrollToTop(true)
+    window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
   return (
