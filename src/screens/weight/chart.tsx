@@ -99,7 +99,7 @@ export function WeightChart({ pts, today, goal }: { pts: TrendPoint[]; today: nu
   const dotPos = shownDots.map((d) => ({ d, cx: X(d.day), cy: Y(d.weight), ty: Y(curve.at(d.day)) }))
   const selDot = (sel && dotPos.find((p) => p.d.key === sel.key && p.d.kind === sel.kind)) || null
 
-  const trendEnd = pts.length ? curveEnd(pts, v1) : null
+  const current = pts.length ? latestWeighIn(pts, v1) : null
   const diff = windowChange(pts, v0, v1)
   const tone = toneFor(diff, goal, pts)
   const slope = trendSlope(pts, today)
@@ -196,8 +196,8 @@ export function WeightChart({ pts, today, goal }: { pts: TrendPoint[]; today: nu
           <div className="muted weight-lbl center">{preset ? `${rangeText} · ${BUCKET_LABEL[kind]}` : rangeText}</div>
           <div className="muted weight-lbl right">lb / week</div>
           <div className="mono weight-big">
-            {trendEnd != null ? fmtLb(trendEnd) : '—'}
-            {trendEnd != null && <span className="muted unit"> lb</span>}
+            {current != null ? fmtLb(current) : '—'}
+            {current != null && <span className="muted unit"> lb</span>}
           </div>
           <div className="center">
             <Delta v={diff} tone={tone} />
@@ -279,11 +279,11 @@ export function WeightChart({ pts, today, goal }: { pts: TrendPoint[]; today: nu
   )
 }
 
-/** Trend at the right edge of the view: the curve there, or the last weigh-in's trend if the edge is past it. */
-function curveEnd(pts: TrendPoint[], v1: number) {
+/** Raw weight of the latest weigh-in at or before the view's right edge (your latest reading when the view ends today). */
+function latestWeighIn(pts: TrendPoint[], v1: number) {
   let v: number | null = null
   for (const p of pts) {
-    if (p.day <= v1) v = p.trend
+    if (p.day <= v1) v = p.weight
     else break
   }
   return v
