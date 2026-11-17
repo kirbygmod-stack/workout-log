@@ -12,11 +12,14 @@ import '@fontsource/ibm-plex-mono/latin-700.css'
 import './index.css'
 import App from './App.tsx'
 import { addLaterStarters } from './db'
+import { installKeyboardReset } from './scroller'
 
 // Ask the browser not to evict our data under storage pressure.
 navigator.storage?.persist?.().catch(() => {})
 
 registerSW({ immediate: true })
+
+installKeyboardReset()
 
 addLaterStarters().catch((e) => console.error('Adding starter exercises failed', e))
 
